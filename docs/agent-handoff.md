@@ -77,3 +77,13 @@ validation result, architectural decision, or follow-up risk.
 - The workflow creates `app/build` and an ephemeral standard debug keystore
   before Gradle assembly. This is the established CI recipe; it never accesses
   a release keystore.
+
+## 2026-08-20 — Preemptive image default regression guard
+
+- The app module does not yet have a configured unit-test dependency. Issue #5
+  adds a focused PowerShell verifier instead of expanding the build/test graph:
+  it checks the runtime SharedPreferences getBoolean default for
+  `preemptive_image_render` remains `false`. Run it with
+  `powershell -ExecutionPolicy Bypass -File scripts/verify-preemptive-image-default.ps1`.
+- This guards the fresh-install fast path without changing production behavior,
+  preference names, SDK/toolchain versions, or CI configuration.
