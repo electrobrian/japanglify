@@ -95,7 +95,7 @@ function New-PanelHeader {
 
 function New-PanelRule {
     param([int] $Width)
-    return ('  ' + ('·' * [Math]::Max(8, $Width - 4)))
+    return ('  ' + ('-' * [Math]::Max(8, $Width - 4)))
 }
 
 function Color-Line {
@@ -122,6 +122,70 @@ function Color-Line {
     }
     if ($null -eq $code) { return $Text }
     return "$($script:Escape)[$code`m$Text$reset"
+}
+
+function Read-DashboardKeys {
+    param(
+        [ref] $Focus,
+        [ref] $Paused,
+        [ref] $LeftOffset,
+        [ref] $RightOffset,
+        [ref] $QuitRequested
+    )
+    $changed = $false
+    try {
+        while ([Console]::KeyAvailable) {
+            $key = [Console]::ReadKey($true)
+            switch ($key.Key) {
+                ([ConsoleKey]::Q) { $QuitRequested.Value = $true; $changed = $true }
+                ([ConsoleKey]::Spacebar) { $Paused.Value = -not $Paused.Value; $changed = $true }
+                ([ConsoleKey]::LeftArrow) { $Focus.Value = 'WORKFLOW'; $changed = $true }
+                ([ConsoleKey]::RightArrow) { $Focus.Value = 'HOST'; $changed = $true }
+                ([ConsoleKey]::UpArrow) {
+                    if ($Focus.Value -eq 'WORKFLOW') { $LeftOffset.Value = [Math]::Max(0, $LeftOffset.Value - 1) }
+                    else { $RightOffset.Value = [Math]::Max(0, $RightOffset.Value - 1) }
+                    $changed = $true
+                }
+                ([ConsoleKey]::DownArrow) {
+                    if ($Focus.Value -eq 'WORKFLOW') { $LeftOffset.Value++ }
+                    else { $RightOffset.Value++ }
+                    $changed = $true
+                }
+                ([ConsoleKey]::Home) {
+                    if ($Focus.Value -eq 'WORKFLOW') { $LeftOffset.Value = 0 }
+                    else { $RightOffset.Value = 0 }
+                    $changed = $true
+                }
+            }
+        }
+    } catch { }
+    return $changed
+}
+
+function Wait-DashboardInput {
+    param(
+        [int] $Seconds,
+        [ref] $Focus,
+        [ref] $Paused,
+        [ref] $LeftOffset,
+        [ref] $RightOffset,
+        [ref] $QuitRequested
+    )
+    $deadline = [DateTimeOffset]::Now.AddSeconds([Math]::Max(0, $Seconds))
+    do {
+        $changed = Read-DashboardKeys -Focus $Focus -Paused $Paused -LeftOffset $LeftOffset -RightOffset $RightOffset -QuitRequested $QuitRequested
+        if ($changed -or $QuitRequested.Value) { return $true }
+        Start-Sleep -Milliseconds 100
+    } while ([DateTimeOffset]::Now -lt $deadline)
+    return $false
+}
+
+function Apply-PanelOffset {
+    param([string[]] $Lines, [int] $Offset)
+    $items = @($Lines)
+    if ($Offset -le 0 -or $items.Count -eq 0) { return $items }
+    if ($Offset -ge $items.Count) { return @('  (end of panel)') }
+    return @('  ... scrolled ...') + @($items[$Offset..($items.Count - 1)])
 }
 
 function Format-Age {
@@ -692,11 +756,24 @@ function Get-PrPanel {
 }
 
 function Write-Dashboard {
-    param([string[]] $Left, [string[]] $Right, [int] $Width, [bool] $Interactive, [ref] $PreviousHeight)
+    param(
+        [string[]] $Left,
+        [string[]] $Right,
+        [int] $Width,
+        [bool] $Interactive,
+        [ref] $PreviousHeight,
+        [string] $Focus = 'WORKFLOW',
+        [bool] $Paused = $false,
+        [int] $LeftOffset = 0,
+        [int] $RightOffset = 0
+    )
+    $Left = @(Apply-PanelOffset -Lines $Left -Offset $LeftOffset)
+    $Right = @(Apply-PanelOffset -Lines $Right -Offset $RightOffset)
     $gap = 2
     $rightWidth = [Math]::Max(28, [int][Math]::Floor($Width / 3))
     $leftWidth = $Width - $rightWidth - $gap
-    $bannerLabel = ' JAPANGLIFY  /  CI CONTROL ROOM '
+    $pauseLabel = if ($Paused) { 'PAUSED' } else { 'LIVE' }
+    $bannerLabel = " JAPANGLIFY  /  CI CONTROL ROOM  /  $Focus  /  $pauseLabel  /  arrows navigate | space pause | q quit "
     $bannerFill = [Math]::Max(4, $Width - $bannerLabel.Length - 4)
     $banner = '+==' + $bannerLabel + ('=' * $bannerFill) + '==+'
     $separator = '+' + ('-' * [Math]::Max(8, $Width - 2)) + '+'
@@ -737,21 +814,36 @@ $previousHeight = 0
 $interactive = -not $Once -and $OutputFormat -eq 'Console'
 try { if ([Console]::IsOutputRedirected) { $interactive = $false } } catch { $interactive = $false }
 if ($interactive) { Clear-Host }
+$focus = 'WORKFLOW'
+$paused = $false
+$leftOffset = 0
+$rightOffset = 0
+$quitRequested = $false
+$haveData = $false
 
 do {
-    try {
-        $lastPullRequests = Get-OpenPullRequests $Repository
-        $githubError = $null
-    } catch {
-        $githubError = $_.Exception.Message
+    if ($interactive) {
+        Read-DashboardKeys -Focus ([ref]$focus) -Paused ([ref]$paused) -LeftOffset ([ref]$leftOffset) -RightOffset ([ref]$rightOffset) -QuitRequested ([ref]$quitRequested) | Out-Null
     }
-    if (([DateTimeOffset]::Now - $releaseCacheAt).TotalSeconds -ge $ReleaseRefreshSeconds) {
+    if ($quitRequested) { break }
+
+    $refresh = -not $paused -or -not $haveData
+    if ($refresh) {
         try {
-            $releaseCache = Get-TesterReleases $Repository
-            $releaseCacheAt = [DateTimeOffset]::Now
+            $lastPullRequests = Get-OpenPullRequests $Repository
+            $githubError = $null
         } catch {
-            if (-not $githubError) { $githubError = "Release lookup failed: $($_.Exception.Message)" }
+            $githubError = $_.Exception.Message
         }
+        if (([DateTimeOffset]::Now - $releaseCacheAt).TotalSeconds -ge $ReleaseRefreshSeconds) {
+            try {
+                $releaseCache = Get-TesterReleases $Repository
+                $releaseCacheAt = [DateTimeOffset]::Now
+            } catch {
+                if (-not $githubError) { $githubError = "Release lookup failed: $($_.Exception.Message)" }
+            }
+        }
+        $haveData = $true
     }
 
     $width = Get-TerminalWidth
@@ -761,14 +853,22 @@ do {
     $workers = @(Get-CodexWorkers $TranscriptPath $WorkerLookbackMinutes $MaxWorkers)
     $system = Get-SystemSnapshot -DashboardStartedAt $dashboardStartedAt
     if ($OutputFormat -eq 'Json') {
-        $snapshot = Get-RawSnapshot -PullRequests $lastPullRequests -Releases $releaseCache -Commentary $commentary -Workers $workers -System $system -GitHubError $githubError -Transcript $TranscriptPath
-        Write-Output ($snapshot | ConvertTo-Json -Depth 12 -Compress)
+        if ($refresh) {
+            $snapshot = Get-RawSnapshot -PullRequests $lastPullRequests -Releases $releaseCache -Commentary $commentary -Workers $workers -System $system -GitHubError $githubError -Transcript $TranscriptPath
+            Write-Output ($snapshot | ConvertTo-Json -Depth 12 -Compress)
+        }
     } else {
         $left = @(Get-PrPanel -PullRequests $lastPullRequests -Releases $releaseCache -Commentary $commentary -Workers $workers -Width $leftWidth -Transcript $TranscriptPath)
-        if ($githubError) { $left = @("GITHUB ERROR: $githubError", '') + $left }
+        if ($githubError) { $left = @('GITHUB OFFLINE  |  run gh auth login for PR/release data', '') + $left }
         $right = @(Get-SystemPanel -Snapshot $system -Width $rightWidth)
-        Write-Dashboard $left $right $width $interactive ([ref]$previousHeight)
+        Write-Dashboard $left $right $width $interactive ([ref]$previousHeight) $focus $paused $leftOffset $rightOffset
     }
 
-    if (-not $Once) { Start-Sleep -Seconds $IntervalSeconds }
-} while (-not $Once)
+    if (-not $Once) {
+        if ($interactive) {
+            Wait-DashboardInput -Seconds $IntervalSeconds -Focus ([ref]$focus) -Paused ([ref]$paused) -LeftOffset ([ref]$leftOffset) -RightOffset ([ref]$rightOffset) -QuitRequested ([ref]$quitRequested) | Out-Null
+        } else {
+            Start-Sleep -Seconds $IntervalSeconds
+        }
+    }
+} while (-not $Once -and -not $quitRequested)

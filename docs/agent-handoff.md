@@ -106,3 +106,7 @@ validation result, architectural decision, or follow-up risk.
   top-level control-room banner and deliberate left workflow/right host-health
   composition. This avoids relying on Unicode box drawing while preserving
   clear visual grouping.
+- Interactive controls are deliberately isolated from machine-readable output:
+  Left/Right changes pane focus, Up/Down scrolls, Home resets the selected pane,
+  Space pauses/resumes refresh, and `q` quits. JSON-lines and redirected/`-Once`
+  modes never read console keys or emit control sequences.
