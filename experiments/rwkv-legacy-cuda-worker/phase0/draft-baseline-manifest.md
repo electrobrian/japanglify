@@ -16,7 +16,7 @@ This draft covers every field required by section 5.3 of
 | Source and destination weight formats | Source checkpoint format `[PENDING — requires Brian approval]`; destination `.rwkvq` format `[PENDING — requires Brian approval]` |
 | Quantization scheme, block size, scale representation, and tensors excluded from quantization | `[PENDING — requires Brian approval]` |
 | Runtime source revision and applied patches | `[PENDING — requires Brian approval]` |
-| Compiler, CUDA toolkit, driver, and target architecture | Compiler `nvcc.exe` found at `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v6.5\bin\nvcc.exe`; toolkit `CUDA v6.5` confirmed; driver `NVIDIA 341.92 (WMI 9.18.13.4192)`; target architecture `sm_11` candidate, physical compatibility `[PENDING — requires physical device probe]` |
+| Compiler, CUDA toolkit, driver, and target architecture | Compiler `nvcc.exe` found at `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v6.5\bin\nvcc.exe`, reporting `V6.5.13`; toolkit `CUDA v6.5` confirmed; driver `NVIDIA 341.92 (WMI 9.18.13.4192)`; target architecture `sm_11` candidate, physical compatibility `[PENDING — requires physical device probe]` |
 | GPU PCI identity and usable VRAM estimate | PCI `VEN_10DE&DEV_0402&SUBSYS_050510DE&REV_A1`; WMI AdapterRAM `268,435,456 bytes (256 MiB)`; usable VRAM `[PENDING — requires physical safe allocation probe]` |
 | Weight, state, activation, workspace, display, and safety memory budgets | Weight/state/activation/workspace `[PENDING — requires exact checkpoint and format]`; display reservation `[PENDING — requires physical safe allocation probe]`; usable VRAM `[PENDING — requires physical safe allocation probe]`; safety reserve `[PENDING — requires Brian approval]` |
 | Accumulator, state, activation, and output-logit precision | Candidate FP32 for all four; final values `[PENDING — requires Brian approval]` |
@@ -36,6 +36,7 @@ This draft covers every field required by section 5.3 of
   entry is treated as an inventory artifact, not usable system RAM.
 - CUDA Toolkit `v6.5` is installed and `nvcc.exe` is on PATH at
   `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v6.5\bin\nvcc.exe`.
+  The compiler reports CUDA release `6.5`, version `V6.5.13`.
   `nvidia-smi.exe` was not found on PATH; the NVIDIA `NVSMI` directory exists,
   but the executable was not found.
 - TPM follow-up confirms an Infineon TPM 1.2, firmware `3.16`, present,

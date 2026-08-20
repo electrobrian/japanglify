@@ -18,8 +18,9 @@ measured.
   at 3.0 GHz, 16 GiB installed RAM, 44.14 GiB free on `C:`.
 - CUDA toolkit follow-up: CUDA Toolkit `v6.5` is installed at
   `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v6.5`, and `nvcc.exe`
-  is on PATH. `nvidia-smi.exe` remains unavailable. No common CUDA samples
-  directory was found.
+  is on PATH. `nvcc --version` reports release `6.5`, compiler version
+  `V6.5.13`. `nvidia-smi.exe` remains unavailable. No common CUDA samples
+  directory was reported by the first checker run.
 - TPM follow-up: present, enabled, ready, activated, and owned; manufacturer
   reports Infineon TPM 1.2 firmware `3.16`. No TPM integration is part of this
   CUDA experiment.
