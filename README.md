@@ -180,6 +180,45 @@ If AGP downloads a fresh aapt2 into `~/.gradle/caches` mid-build and a native to
 | `scripts/bootstrap-android-sdk.sh` | Download Linux SDK; brand after unpack |
 | `scripts/prepare-freebsd-build.sh` | Brand SDK + Gradle cache natives |
 | `scripts/assemble-debug.sh` | Prep + assembleDebug in one shot |
+| `scripts/Run-CI-Pipeline-Dashboard.cmd` | Double-click launcher for the Windows CI/worker dashboard |
+
+### Windows CI Pipeline Dashboard
+
+Double-click `scripts\\Run-CI-Pipeline-Dashboard.cmd` to open a live, read-only
+dashboard. It combines open PR/check/APK-release state and recent Codex-task
+activity with per-core CPU, memory/commit pressure, uptime, power, and busiest
+processes. It requires [GitHub CLI](https://cli.github.com/) (`gh`) to be on
+`PATH` and already authenticated for PR/release data; system information still
+renders when GitHub is temporarily unavailable. Press `Ctrl+C` to stop it.
+
+For one static terminal snapshot or JSON-lines output for a future local web
+viewer, run:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci-pipeline-dashboard.ps1 -Once
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci-pipeline-dashboard.ps1 -OutputFormat Json
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci-pipeline-dashboard.ps1 -NoColor
+```
+
+Console mode uses ANSI/VT colors when available; use `-NoColor` (or set
+`NO_COLOR=1`) for monochrome terminals, transcript capture, or accessibility.
+The layout is intentionally split into a left CI/workflow column and a right
+host-health column, with a compact control-room banner and framed section
+headers so the high-signal state remains scannable as the terminal grows.
+The default live view follows familiar `top` ergonomics: 3-second refresh,
+host-health focus, CPU-sorted busiest processes, task count, uptime, memory,
+and power summaries visible immediately.
+In interactive mode, Left/Right selects a column, Up/Down scrolls that column,
+Home returns it to the top, Space pauses/resumes refresh, and `q` quits. These
+keys are disabled for `-Once`, JSON output, redirected output, and other
+non-interactive use.
+
+Every run also appends the complete machine-readable snapshot to
+`scripts/logs/ci-pipeline-dashboard-%PID%.jsonl` (with `%PID%` expanded per
+process), including when the visible mode is Console. Pass `-LogPath` to choose
+another location or `-NoLog` to disable it. Each line is a standalone JSON
+snapshot suitable for later replay/visualization; `-OutputFormat Json` still
+emits the same snapshots to stdout.
 
 Skip the Android app module (domain only): `./gradlew -PincludeApp=false :domain:test`.
 

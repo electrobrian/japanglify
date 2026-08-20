@@ -29,6 +29,7 @@ out/
 sdk/
 .android-sdk/
 *.log
+/scripts/logs/
 
 # Release signing — local to each machine, never committed.
 /keystore.properties

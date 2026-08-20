@@ -87,3 +87,50 @@ validation result, architectural decision, or follow-up risk.
   `powershell -ExecutionPolicy Bypass -File scripts/verify-preemptive-image-default.ps1`.
 - This guards the fresh-install fast path without changing production behavior,
   preference names, SDK/toolchain versions, or CI configuration.
+
+## 2026-08-20 — CI Pipeline Dashboard
+
+- `scripts/ci-pipeline-dashboard.ps1` is a read-only Windows PowerShell 5.1+
+  dashboard for open PR/check/tester-APK state, inferred Codex worker activity,
+  recent transcript commentary, and host health. Its JSON-lines mode is the
+  future-friendly collector boundary for a local web view.
+- `scripts/Run-CI-Pipeline-Dashboard.cmd` is the double-click launcher: it uses
+  a process-local execution-policy bypass and does not alter machine settings.
+- GitHub lookup failures are displayed in the PR panel while local health and
+  transcript panels continue rendering. The dashboard requires authenticated
+  `gh` only for GitHub-backed data.
+- Console mode color-codes headings, pass/fail/wait states, power warnings, and
+  resource panels with ANSI/VT sequences when supported; `-NoColor` and the
+  `NO_COLOR` environment variable provide deterministic monochrome output.
+- The dashboard uses ASCII-only framing for portable Windows code pages, with a
+  top-level control-room banner and deliberate left workflow/right host-health
+  composition. This avoids relying on Unicode box drawing while preserving
+  clear visual grouping.
+- Interactive controls are deliberately isolated from machine-readable output:
+  Left/Right changes pane focus, Up/Down scrolls, Home resets the selected pane,
+  Space pauses/resumes refresh, and `q` quits. JSON-lines and redirected/`-Once`
+  modes never read console keys or emit control sequences.
+- The control-room pass follows familiar `top`/`ps` conventions: a compact
+  summary line, stable section headers, aligned process columns, explicit
+  pressure labels, and a short activity tail instead of repeatedly exposing
+  long transcript paths in the visual panel. The JSON snapshot retains the
+  complete transcript path and data.
+- Each process appends complete raw snapshots as JSONL to
+  `scripts/logs/ci-pipeline-dashboard-<PID>.jsonl` by default. `%PID%` is
+  expanded before the first write, so simultaneous consoles do not collide;
+  `-LogPath` overrides the destination and `-NoLog` disables persistence.
+  Console styling and interactive controls never enter the log, making it a
+  stable source for a future replay/viewer.
+- Arrow handling accepts both native `ConsoleKeyInfo` arrow keys and ANSI
+  escape sequences from pseudo-terminals. Input is drained before and after a
+  refresh so network/counter work does not swallow navigation keystrokes.
+- Defaults now follow familiar `top` ergonomics: 3-second refresh, host-health
+  focus, CPU-sorted busiest processes, and a task count in the host summary.
+
+## 2026-08-20 — GitHub-backed approval surface
+
+- The dashboard now includes an `Approvals` collection in Console/JSON output.
+  It observes canonical issue comments from `electrobrian` using the exact
+  `/codex-approval-request` and `/codex-approval approve <digest>` forms.
+- This is an audit/visibility surface, not an authority bypass: Codex still
+  requires the in-task worker/model approval gate before assigning work.
