@@ -37,6 +37,7 @@ class KuromojiReadingProvider(
                 // completes the previous word rather than starting a new one.
                 isBoundToPrevious = token.partOfSpeechLevel1 == "助動詞",
                 isParticle = token.partOfSpeechLevel1 == "助詞",
+                isProperNoun = token.partOfSpeechLevel1 == "名詞" && token.partOfSpeechLevel2 == "固有名詞",
                 baseForm = token.baseForm,
                 verbPosHint = jmdictVerbConjugationPrefix(token.conjugationType)
             )
@@ -56,6 +57,7 @@ class KuromojiReadingProvider(
         val surface: String,
         val rawReading: String?,
         val partOfSpeechLevel1: String,
+        val partOfSpeechLevel2: String,
         val baseForm: String?,
         val conjugationType: String?
     )
@@ -87,12 +89,13 @@ class KuromojiReadingProvider(
                     surface = surface.toString(),
                     rawReading = if (merged) null else t.reading,
                     partOfSpeechLevel1 = t.partOfSpeechLevel1,
+                    partOfSpeechLevel2 = t.partOfSpeechLevel2,
                     baseForm = if (merged) null else t.baseForm,
                     conjugationType = if (merged) null else t.conjugationType
                 )
                 i = j
             } else {
-                out += MergedToken(t.surface, t.reading, t.partOfSpeechLevel1, t.baseForm, t.conjugationType)
+                out += MergedToken(t.surface, t.reading, t.partOfSpeechLevel1, t.partOfSpeechLevel2, t.baseForm, t.conjugationType)
                 i++
             }
         }

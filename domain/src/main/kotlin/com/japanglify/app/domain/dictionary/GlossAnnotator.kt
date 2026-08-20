@@ -109,6 +109,10 @@ class GlossAnnotator(private val dictionary: DictionaryProvider) {
     ): Pair<Int, DictionaryEntry>? {
         val maxSpan = minOf(MAX_PHRASE_TOKENS, tokens.size - start)
         for (span in maxSpan downTo MIN_PHRASE_TOKENS) {
+            // Proper-noun metadata is contextual. Do not let a name become
+            // part of a coincidentally matching JMdict expression simply
+            // because the same characters can form a common-word phrase.
+            if ((start until start + span).any { tokens[it].isProperNoun }) continue
             val surface = buildString {
                 for (j in start until start + span) append(tokens[j].surface)
             }
@@ -134,6 +138,13 @@ class GlossAnnotator(private val dictionary: DictionaryProvider) {
         weights: SenseWeights,
         maxGlossLength: Int
     ): GlossResult? {
+        // IPADIC has already classified this token in context as a proper
+        // noun. JMdict's common-word lookup is intentionally context-free,
+        // so it can otherwise attach an implausible English gloss (and then
+        // an emoji) to somebody's name. Keep the reading/romaji untouched;
+        // only skip semantic annotation. Unknown or ambiguous spellings stay
+        // conservative because this flag is false unless the provider says so.
+        if (token.isProperNoun) return null
         // A conjugation ending / auxiliary / copula (ました, ない, だ, ...)
         // isn't an independent word -- it completes the previous token's
         // inflected form (see isBoundToPrevious's own doc). Glossing it

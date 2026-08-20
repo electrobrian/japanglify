@@ -155,6 +155,62 @@ class JapaneseAnalyzerTest {
     }
 
     @Test
+    fun providerConfirmedProperNounKeepsReadingButSuppressesGlossAndEmoji() {
+        val provider = JapaneseAnalyzer.ReadingProvider {
+            listOf(
+                JapaneseAnalyzer.SurfaceReading(
+                    surface = "太郎",
+                    reading = "タロウ",
+                    baseForm = "太郎",
+                    isProperNoun = true
+                )
+            )
+        }
+        val glossAnnotator = GlossAnnotator(
+            GlossAnnotator.DictionaryProvider { _, _, _, _ ->
+                DictionaryEntry("太郎", "たろう", PartOfSpeech.NOUN, "eldest son")
+            }
+        )
+        val emojiAnnotator = EmojiAnnotator(EmojiAnnotator.EmojiProvider { _, _ -> "👦" })
+        val segment = JapaneseAnalyzer(provider, glossAnnotator, emojiAnnotator).annotate(
+            "太郎",
+            JapanglifySettings(includeGlosses = true, includeEmoji = true)
+        ).single()
+
+        assertEquals("たろう", segment.furigana)
+        assertEquals("tarou", segment.romaji)
+        assertNull(segment.gloss)
+        assertNull(segment.emoji)
+    }
+
+    @Test
+    fun ordinaryNounStillReceivesGlossAndEmojiWhenNotMarkedProper() {
+        val provider = JapaneseAnalyzer.ReadingProvider {
+            listOf(JapaneseAnalyzer.SurfaceReading("紙", "カミ", baseForm = "紙"))
+        }
+        val glossAnnotator = GlossAnnotator(
+            GlossAnnotator.DictionaryProvider { _, _, _, _ ->
+                DictionaryEntry("紙", "かみ", PartOfSpeech.NOUN, "paper")
+            }
+        )
+        val emojiAnnotator = EmojiAnnotator(EmojiAnnotator.EmojiProvider { _, _ -> "📄" })
+        val segment = JapaneseAnalyzer(provider, glossAnnotator, emojiAnnotator).annotate(
+            "紙",
+            JapanglifySettings(includeGlosses = true, includeEmoji = true, emojiAlwaysShowBoth = true)
+        ).single()
+
+        assertEquals("paper", segment.gloss)
+        assertEquals("📄", segment.emoji)
+    }
+
+    @Test
+    fun kuromojiMarksCommonJapanesePersonalNameTokensAsProperNouns() {
+        val tokens = KuromojiReadingProvider().tokenize("山田太郎")
+        assertTrue(tokens.any { it.surface == "山田" && it.isProperNoun })
+        assertTrue(tokens.any { it.surface == "太郎" && it.isProperNoun })
+    }
+
+    @Test
     fun emojiEnabledButNoAnnotatorDegradesGracefully() {
         val analyzer = paperAnalyzer(emojiAnnotator = null)
         val segments = analyzer.annotate(
