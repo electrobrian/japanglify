@@ -29,6 +29,9 @@ jobs:
           distribution: temurin
           java-version: '22'
       - uses: gradle/actions/setup-gradle@v4
+      - name: Create ephemeral debug keystore
+        run: |
+          keytool -genkeypair -keystore app/build/local-debug.keystore -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=Android Debug,O=Android,C=US'
       - name: Build both test APKs
         run: ./gradlew :app:assembleDownloadableDebug :app:assembleBundledDebug
       - name: Upload test APKs
