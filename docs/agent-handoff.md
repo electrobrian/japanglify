@@ -77,3 +77,10 @@ validation result, architectural decision, or follow-up risk.
 - The workflow creates `app/build` and an ephemeral standard debug keystore
   before Gradle assembly. This is the established CI recipe; it never accesses
   a release keystore.
+
+## 2026-08-20 — Issue-driven workflow dry run
+
+- Issue #2 verified the remote agent workflow: issue intake from the Project
+  queue, an `agent/` branch based on `BETA-2`, a narrowly scoped documentation
+  commit, and a PR back to `BETA-2`. No application code or release branch was
+  changed.
