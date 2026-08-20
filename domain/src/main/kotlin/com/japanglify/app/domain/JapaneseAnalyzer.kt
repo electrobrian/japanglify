@@ -43,6 +43,13 @@ class JapaneseAnalyzer(
         /** True for a grammatical particle (は/を/の/に/…). */
         val isParticle: Boolean = false,
         /**
+         * True only when the morphological provider identifies this token as
+         * a proper noun in context. Proper nouns retain their reading and
+         * romaji, but must not inherit an unrelated common-word gloss/emoji.
+         * False when a provider is unavailable or the spelling is ambiguous.
+         */
+        val isProperNoun: Boolean = false,
+        /**
          * Dictionary/base form (Kuromoji's `getBaseForm()`) — the lookup key
          * for [com.japanglify.app.domain.dictionary.GlossAnnotator], e.g.
          * 行き's base form is 行く. Null when unavailable (no provider, or a
