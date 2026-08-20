@@ -87,3 +87,15 @@ validation result, architectural decision, or follow-up risk.
   `powershell -ExecutionPolicy Bypass -File scripts/verify-preemptive-image-default.ps1`.
 - This guards the fresh-install fast path without changing production behavior,
   preference names, SDK/toolchain versions, or CI configuration.
+
+## 2026-08-20 — CI Pipeline Dashboard
+
+- `scripts/ci-pipeline-dashboard.ps1` is a read-only Windows PowerShell 5.1+
+  dashboard for open PR/check/tester-APK state, inferred Codex worker activity,
+  recent transcript commentary, and host health. Its JSON-lines mode is the
+  future-friendly collector boundary for a local web view.
+- `scripts/Run-CI-Pipeline-Dashboard.cmd` is the double-click launcher: it uses
+  a process-local execution-policy bypass and does not alter machine settings.
+- GitHub lookup failures are displayed in the PR panel while local health and
+  transcript panels continue rendering. The dashboard requires authenticated
+  `gh` only for GitHub-backed data.

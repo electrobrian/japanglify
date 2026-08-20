@@ -180,6 +180,24 @@ If AGP downloads a fresh aapt2 into `~/.gradle/caches` mid-build and a native to
 | `scripts/bootstrap-android-sdk.sh` | Download Linux SDK; brand after unpack |
 | `scripts/prepare-freebsd-build.sh` | Brand SDK + Gradle cache natives |
 | `scripts/assemble-debug.sh` | Prep + assembleDebug in one shot |
+| `scripts/Run-CI-Pipeline-Dashboard.cmd` | Double-click launcher for the Windows CI/worker dashboard |
+
+### Windows CI Pipeline Dashboard
+
+Double-click `scripts\\Run-CI-Pipeline-Dashboard.cmd` to open a live, read-only
+dashboard. It combines open PR/check/APK-release state and recent Codex-task
+activity with per-core CPU, memory/commit pressure, uptime, power, and busiest
+processes. It requires [GitHub CLI](https://cli.github.com/) (`gh`) to be on
+`PATH` and already authenticated for PR/release data; system information still
+renders when GitHub is temporarily unavailable. Press `Ctrl+C` to stop it.
+
+For one static terminal snapshot or JSON-lines output for a future local web
+viewer, run:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci-pipeline-dashboard.ps1 -Once
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci-pipeline-dashboard.ps1 -OutputFormat Json
+```
 
 Skip the Android app module (domain only): `./gradlew -PincludeApp=false :domain:test`.
 
