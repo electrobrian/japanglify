@@ -217,23 +217,14 @@ class JapanglifyAccessibilityService : AccessibilityService() {
         }
 
         when (event.eventType) {
-            AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED,
+            AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED -> {
+                handleSelectionEvent(event, dismissWhenEmpty = true)
+            }
             AccessibilityEvent.TYPE_VIEW_LONG_CLICKED -> {
-                val captured = captureSelection(event)
-                if (captured != null && captured.text.isNotBlank()) {
-                    pendingSelection = captured
-                    lastSelectedText = captured.text
-                    mainHandler.removeCallbacks(selectionDebounce)
-                    mainHandler.postDelayed(selectionDebounce, 80L)
-                } else {
-                    // A cursor move after a real selection is the reliable
-                    // signal that the source selection was cleared. Do not
-                    // dismiss on an ordinary click: Android emits those while
-                    // it opens its own selection toolbar, which used to make
-                    // the Japanglify chip disappear almost immediately.
-                    mainHandler.removeCallbacks(hideOverlayRunnable)
-                    mainHandler.postDelayed(hideOverlayRunnable, 500L)
-                }
+                // Many hosts emit an empty long-click event immediately after
+                // the real selection event while Android opens its selection
+                // toolbar. That event does not mean the selection was cleared.
+                handleSelectionEvent(event, dismissWhenEmpty = false)
             }
             AccessibilityEvent.TYPE_VIEW_CLICKED -> {
                 when {
@@ -266,6 +257,29 @@ class JapanglifyAccessibilityService : AccessibilityService() {
             }
             else -> Unit
         }
+    }
+
+    private fun handleSelectionEvent(
+        event: AccessibilityEvent,
+        dismissWhenEmpty: Boolean
+    ) {
+        val captured = captureSelection(event)
+        if (captured != null && captured.text.isNotBlank()) {
+            pendingSelection = captured
+            lastSelectedText = captured.text
+            mainHandler.removeCallbacks(selectionDebounce)
+            mainHandler.postDelayed(selectionDebounce, 80L)
+            return
+        }
+        if (!dismissWhenEmpty) {
+            CopyHookDiagnostics.log(this, "chip kept: empty long-click event")
+            return
+        }
+
+        // A collapsed selection-change event from the selected host is the
+        // best signal available that the source selection was cleared.
+        mainHandler.removeCallbacks(hideOverlayRunnable)
+        mainHandler.postDelayed(hideOverlayRunnable, 500L)
     }
 
     private data class HostContext(
