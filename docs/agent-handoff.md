@@ -87,3 +87,16 @@ validation result, architectural decision, or follow-up risk.
   `powershell -ExecutionPolicy Bypass -File scripts/verify-preemptive-image-default.ps1`.
 - This guards the fresh-install fast path without changing production behavior,
   preference names, SDK/toolchain versions, or CI configuration.
+
+## 2026-08-20 — Chip dismissal event ordering
+
+- Upstream issue brianreborn/japanglify#5 reproduces on the latest BETA-2
+  tester build: the selection chip appears and then disappears almost
+  immediately.
+- Android hosts can emit an empty `TYPE_VIEW_LONG_CLICKED` event after the
+  real selection event while opening the selection toolbar. An empty
+  long-click is not proof that the selection was cleared and must not schedule
+  chip dismissal. Collapsed `TYPE_VIEW_TEXT_SELECTION_CHANGED` remains the
+  dismissal signal, with the existing debounce.
+- Validation requires the PR APK on a physical device because JVM/domain tests
+  cannot reproduce Android accessibility event ordering.
