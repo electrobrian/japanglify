@@ -210,6 +210,13 @@ Home returns it to the top, Space pauses/resumes refresh, and `q` quits. These
 keys are disabled for `-Once`, JSON output, redirected output, and other
 non-interactive use.
 
+Every run also appends the complete machine-readable snapshot to
+`scripts/logs/ci-pipeline-dashboard-%PID%.jsonl` (with `%PID%` expanded per
+process), including when the visible mode is Console. Pass `-LogPath` to choose
+another location or `-NoLog` to disable it. Each line is a standalone JSON
+snapshot suitable for later replay/visualization; `-OutputFormat Json` still
+emits the same snapshots to stdout.
+
 Skip the Android app module (domain only): `./gradlew -PincludeApp=false :domain:test`.
 
 ## Usage

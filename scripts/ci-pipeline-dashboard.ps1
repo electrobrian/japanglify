@@ -45,13 +45,22 @@ param(
     [ValidateSet('Console', 'Json')]
     [string] $OutputFormat = 'Console',
     [switch] $Once,
-    [switch] $NoColor
+    [switch] $NoColor,
+    [string] $LogPath,
+    [switch] $NoLog
 )
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 $script:UseColor = $OutputFormat -eq 'Console' -and -not $NoColor -and -not $env:NO_COLOR
 $script:Escape = [char]27
+
+if ([string]::IsNullOrWhiteSpace($LogPath)) {
+    $LogPath = Join-Path $PSScriptRoot 'logs\ci-pipeline-dashboard-%PID%.jsonl'
+}
+$LogPath = $LogPath -replace '%PID%', [string]$PID
+$script:LogPath = $LogPath
+$script:LogEnabled = -not $NoLog
 
 function Invoke-GhJson {
     param([Parameter(Mandatory)][string[]] $Arguments)
@@ -63,6 +72,22 @@ function Invoke-GhJson {
     $text = $output -join [Environment]::NewLine
     if ([string]::IsNullOrWhiteSpace($text)) { return @() }
     return @($text | ConvertFrom-Json)
+}
+
+function Write-SnapshotLog {
+    param([Parameter(Mandatory)] $Snapshot)
+    if (-not $script:LogEnabled) { return }
+    try {
+        $parent = Split-Path -Parent $script:LogPath
+        if (-not [string]::IsNullOrWhiteSpace($parent)) {
+            New-Item -ItemType Directory -Path $parent -Force -ErrorAction Stop | Out-Null
+        }
+        $line = $Snapshot | ConvertTo-Json -Depth 12 -Compress
+        Add-Content -LiteralPath $script:LogPath -Value $line -Encoding UTF8 -ErrorAction Stop
+    } catch {
+        $script:LogEnabled = $false
+        Write-Warning "Dashboard snapshot logging disabled: $($_.Exception.Message)"
+    }
 }
 
 function Get-TerminalWidth {
@@ -866,11 +891,15 @@ do {
     $commentary = @(Get-TranscriptCommentary $TranscriptPath $TranscriptLines)
     $workers = @(Get-CodexWorkers $TranscriptPath $WorkerLookbackMinutes $MaxWorkers)
     $system = Get-SystemSnapshot -DashboardStartedAt $dashboardStartedAt
+    $snapshot = $null
+    $jsonLine = $null
+    if ($refresh) {
+        $snapshot = Get-RawSnapshot -PullRequests $lastPullRequests -Releases $releaseCache -Commentary $commentary -Workers $workers -System $system -GitHubError $githubError -Transcript $TranscriptPath
+        $jsonLine = $snapshot | ConvertTo-Json -Depth 12 -Compress
+        Write-SnapshotLog -Snapshot $snapshot
+    }
     if ($OutputFormat -eq 'Json') {
-        if ($refresh) {
-            $snapshot = Get-RawSnapshot -PullRequests $lastPullRequests -Releases $releaseCache -Commentary $commentary -Workers $workers -System $system -GitHubError $githubError -Transcript $TranscriptPath
-            Write-Output ($snapshot | ConvertTo-Json -Depth 12 -Compress)
-        }
+        if ($refresh) { Write-Output $jsonLine }
     } else {
         $left = @(Get-PrPanel -PullRequests $lastPullRequests -Releases $releaseCache -Commentary $commentary -Workers $workers -Width $leftWidth -Transcript $TranscriptPath)
         if ($githubError) { $left = @('GITHUB OFFLINE  |  run gh auth login for PR/release data', '') + $left }

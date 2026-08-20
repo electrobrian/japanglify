@@ -115,3 +115,9 @@ validation result, architectural decision, or follow-up risk.
   pressure labels, and a short activity tail instead of repeatedly exposing
   long transcript paths in the visual panel. The JSON snapshot retains the
   complete transcript path and data.
+- Each process appends complete raw snapshots as JSONL to
+  `scripts/logs/ci-pipeline-dashboard-<PID>.jsonl` by default. `%PID%` is
+  expanded before the first write, so simultaneous consoles do not collide;
+  `-LogPath` overrides the destination and `-NoLog` disables persistence.
+  Console styling and interactive controls never enter the log, making it a
+  stable source for a future replay/viewer.
