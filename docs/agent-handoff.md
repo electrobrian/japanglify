@@ -99,3 +99,6 @@ validation result, architectural decision, or follow-up risk.
 - GitHub lookup failures are displayed in the PR panel while local health and
   transcript panels continue rendering. The dashboard requires authenticated
   `gh` only for GitHub-backed data.
+- Console mode color-codes headings, pass/fail/wait states, power warnings, and
+  resource panels with ANSI/VT sequences when supported; `-NoColor` and the
+  `NO_COLOR` environment variable provide deterministic monochrome output.

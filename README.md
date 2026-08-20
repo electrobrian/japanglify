@@ -197,7 +197,11 @@ viewer, run:
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci-pipeline-dashboard.ps1 -Once
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci-pipeline-dashboard.ps1 -OutputFormat Json
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci-pipeline-dashboard.ps1 -NoColor
 ```
+
+Console mode uses ANSI/VT colors when available; use `-NoColor` (or set
+`NO_COLOR=1`) for monochrome terminals, transcript capture, or accessibility.
 
 Skip the Android app module (domain only): `./gradlew -PincludeApp=false :domain:test`.
 

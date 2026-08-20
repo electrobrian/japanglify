@@ -44,11 +44,14 @@ param(
     [int] $MaxWorkers = 24,
     [ValidateSet('Console', 'Json')]
     [string] $OutputFormat = 'Console',
-    [switch] $Once
+    [switch] $Once,
+    [switch] $NoColor
 )
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+$script:UseColor = $OutputFormat -eq 'Console' -and -not $NoColor -and -not $env:NO_COLOR
+$script:Escape = [char]27
 
 function Invoke-GhJson {
     param([Parameter(Mandatory)][string[]] $Arguments)
@@ -80,6 +83,32 @@ function Pad-Line {
     param([AllowNull()][string] $Text, [int] $Width)
     $value = Limit-Text $Text $Width
     return $value.PadRight($Width)
+}
+
+function Color-Line {
+    param([AllowNull()][string] $Text)
+    if (-not $script:UseColor -or [string]::IsNullOrEmpty($Text)) { return $Text }
+    $reset = "$($script:Escape)[0m"
+    $code = $null
+    if ($Text -match '(?i)^\s*GITHUB ERROR|\[FAIL|failed|error|throttled') {
+        $code = '31;1'
+    } elseif ($Text -match '^\s*(CI PIPELINE|SYSTEM|CODEX WORKERS|CODEX TASK TAIL|BUSIEST PROCESSES)') {
+        $code = '36;1'
+    } elseif ($Text -match '(?i)\[PASS|SUCCESS|unrestricted|Online') {
+        $code = '32'
+    } elseif ($Text -match '(?i)\[WAIT|RUN |DRAFT|not published|No open pull requests|power-saving|approval pending') {
+        $code = '33'
+    } elseif ($Text -match '^\s*CPU') {
+        $code = '36'
+    } elseif ($Text -match '^\s*(RAM|Commit|Paging)') {
+        $code = '35'
+    } elseif ($Text -match '^\s*\+') {
+        $code = '34'
+    } elseif ($Text -match '^\s*\d\d:\d\d:\d\d') {
+        $code = '90'
+    }
+    if ($null -eq $code) { return $Text }
+    return "$($script:Escape)[$code`m$Text$reset"
 }
 
 function Format-Age {
@@ -653,7 +682,7 @@ function Write-Dashboard {
         $heightToWrite = [Math]::Max($combined.Count, $PreviousHeight.Value)
         for ($i = 0; $i -lt $heightToWrite; $i++) {
             $line = if ($i -lt $combined.Count) { $combined[$i] } else { '' }
-            [Console]::WriteLine((Pad-Line $line ($Width - 1)))
+            [Console]::WriteLine((Color-Line (Pad-Line $line ($Width - 1))))
         }
         $PreviousHeight.Value = $combined.Count
     } else {
