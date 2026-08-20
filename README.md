@@ -205,6 +205,9 @@ Console mode uses ANSI/VT colors when available; use `-NoColor` (or set
 The layout is intentionally split into a left CI/workflow column and a right
 host-health column, with a compact control-room banner and framed section
 headers so the high-signal state remains scannable as the terminal grows.
+The default live view follows familiar `top` ergonomics: 3-second refresh,
+host-health focus, CPU-sorted busiest processes, task count, uptime, memory,
+and power summaries visible immediately.
 In interactive mode, Left/Right selects a column, Up/Down scrolls that column,
 Home returns it to the top, Space pauses/resumes refresh, and `q` quits. These
 keys are disabled for `-Once`, JSON output, redirected output, and other

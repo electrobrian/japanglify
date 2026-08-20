@@ -124,3 +124,5 @@ validation result, architectural decision, or follow-up risk.
 - Arrow handling accepts both native `ConsoleKeyInfo` arrow keys and ANSI
   escape sequences from pseudo-terminals. Input is drained before and after a
   refresh so network/counter work does not swallow navigation keystrokes.
+- Defaults now follow familiar `top` ergonomics: 3-second refresh, host-health
+  focus, CPU-sorted busiest processes, and a task count in the host summary.

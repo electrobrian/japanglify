@@ -32,7 +32,7 @@ Emits one compact JSON object per line for a future Node/SSE/WebSocket bridge.
 param(
     [string[]] $Repository = @('electrobrian/japanglify'),
     [ValidateRange(1, 300)]
-    [int] $IntervalSeconds = 5,
+    [int] $IntervalSeconds = 3,
     [ValidateRange(5, 3600)]
     [int] $ReleaseRefreshSeconds = 30,
     [string] $TranscriptPath,
@@ -590,7 +590,9 @@ function Get-SystemSnapshot {
     }
 
     $processSnapshot = @()
+    $processCount = $null
     try {
+        $processCount = @((Get-Process -ErrorAction Stop)).Count
         $coreCount = [Math]::Max(1, [Environment]::ProcessorCount)
         $processSamples = @((Get-Counter '\Process(*)\% Processor Time','\Process(*)\Working Set - Private','\Process(*)\ID Process').CounterSamples)
         $processes = @($processSamples |
@@ -628,6 +630,7 @@ function Get-SystemSnapshot {
         Host = [Environment]::MachineName
         SystemUptimeSeconds = $systemUptimeSeconds
         DashboardUptimeSeconds = [Math]::Max(0, ([DateTimeOffset]::Now - $DashboardStartedAt).TotalSeconds)
+        ProcessCount = $processCount
         Power = Get-PowerSnapshot
         Cpu = [pscustomobject]@{ TotalPercent = $cpuTotal; Cores = @($cpuCores) }
         Memory = $memorySnapshot
@@ -640,7 +643,7 @@ function Get-SystemPanel {
     param($Snapshot, [int] $Width)
     $lines = @(
         (New-PanelHeader -Title 'SYSTEM HEALTH' -Width $Width),
-        "  $($Snapshot.Host) | host up $(Format-DurationSeconds $Snapshot.SystemUptimeSeconds)",
+        "  $($Snapshot.Host) | host up $(Format-DurationSeconds $Snapshot.SystemUptimeSeconds) | tasks $($Snapshot.ProcessCount)",
         "  dashboard up $(Format-DurationSeconds $Snapshot.DashboardUptimeSeconds) | $([DateTimeOffset]::Parse($Snapshot.Timestamp).ToString('HH:mm:ss'))",
         ''
     )
@@ -883,7 +886,7 @@ $previousHeight = 0
 $interactive = -not $Once -and $OutputFormat -eq 'Console'
 try { if ([Console]::IsOutputRedirected) { $interactive = $false } } catch { $interactive = $false }
 if ($interactive) { Clear-Host }
-$focus = 'WORKFLOW'
+$focus = 'HOST'
 $paused = $false
 $leftOffset = 0
 $rightOffset = 0
