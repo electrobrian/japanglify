@@ -7,6 +7,20 @@ set "NVCC=%CUDA_BIN%\nvcc.exe"
 set "SOURCE=%ROOT%device-probe.cu"
 set "EXE=%ROOT%deviceQuery.exe"
 set "REPORT=%ROOT%device-query-report.txt"
+set "VCVARS="
+
+if exist "%VS140COMNTOOLS%..\..\VC\vcvarsall.bat" set "VCVARS=%VS140COMNTOOLS%..\..\VC\vcvarsall.bat"
+if not defined VCVARS if exist "%VS120COMNTOOLS%..\..\VC\vcvarsall.bat" set "VCVARS=%VS120COMNTOOLS%..\..\VC\vcvarsall.bat"
+if not defined VCVARS if exist "%VS110COMNTOOLS%..\..\VC\vcvarsall.bat" set "VCVARS=%VS110COMNTOOLS%..\..\VC\vcvarsall.bat"
+if not defined VCVARS if exist "%ProgramFiles(x86)%\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" set "VCVARS=%ProgramFiles(x86)%\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat"
+if not defined VCVARS if exist "%ProgramFiles(x86)%\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" set "VCVARS=%ProgramFiles(x86)%\Microsoft Visual Studio\2019\BuildTools\VC\Auxiliary\Build\vcvarsall.bat"
+if not defined VCVARS if exist "%ProgramFiles(x86)%\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat" set "VCVARS=%ProgramFiles(x86)%\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat"
+if not defined VCVARS if exist "%ProgramFiles(x86)%\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" set "VCVARS=%ProgramFiles(x86)%\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat"
+
+if defined VCVARS (
+    echo Loading Visual Studio compiler environment...
+    call "%VCVARS%" x64 >nul
+)
 
 set "SELF=%~f0"
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$self=$env:SELF; $out=$env:SOURCE; $begin='### BEGIN CUDA '+'SOURCE ###'; $finish='### END CUDA '+'SOURCE ###'; $lines=[System.IO.File]::ReadAllLines($self); $start=[Array]::IndexOf($lines,$begin); $end=[Array]::IndexOf($lines,$finish); if($start -lt 0 -or $end -le $start){throw 'Embedded CUDA source markers were not found.'}; $source=$lines[($start+1)..($end-1)] -join [Environment]::NewLine; [System.IO.File]::WriteAllText($out,$source,(New-Object System.Text.UTF8Encoding($false)))"
@@ -23,8 +37,17 @@ if not exist "%NVCC%" (
     exit /b 2
 )
 
+where cl.exe >nul 2>&1
+if errorlevel 1 (
+    echo Microsoft cl.exe was not found.
+    echo CUDA 6.5 on Windows requires a compatible Visual C++ compiler.
+    echo Install or repair Visual Studio 2013 C++ tools, then run this file again.
+    pause
+    exit /b 5
+)
+
 echo Building deviceQuery.exe for sm_11 with CUDA 6.5...
-"%NVCC%" -arch=sm_11 -o "%EXE%" "%SOURCE%"
+"%NVCC%" -m64 -arch=sm_11 -o "%EXE%" "%SOURCE%"
 if errorlevel 1 (
     echo.
     echo CUDA device probe compilation failed.
