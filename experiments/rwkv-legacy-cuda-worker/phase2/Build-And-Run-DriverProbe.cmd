@@ -5,6 +5,7 @@ set "SOURCE=%ROOT%driver-probe.c"
 set "EXE=%ROOT%driverProbe.exe"
 set "REPORT=%ROOT%driver-probe-report.txt"
 set "CC="
+set "CC_DIR="
 for %%C in (clang.exe gcc.exe) do if not defined CC (where %%C >nul 2>&1 && set "CC=%%C")
 if not defined CC if exist "C:\msys64\mingw64\bin\gcc.exe" set "CC=C:\msys64\mingw64\bin\gcc.exe"
 if not defined CC if exist "C:\msys64\ucrt64\bin\gcc.exe" set "CC=C:\msys64\ucrt64\bin\gcc.exe"
@@ -16,11 +17,13 @@ if not defined CC (
     pause
     exit /b 3
 )
+for %%F in ("%CC%") do set "CC_DIR=%%~dpF"
+set "PATH=%CC_DIR%;%PATH%"
 set "SELF=%~f0"
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$self=$env:SELF; $out=$env:SOURCE; $begin='### BEGIN DRIVER '+'SOURCE ###'; $finish='### END DRIVER '+'SOURCE ###'; $lines=[System.IO.File]::ReadAllLines($self); $start=[Array]::IndexOf($lines,$begin); $end=[Array]::IndexOf($lines,$finish); if($start -lt 0 -or $end -le $start){throw 'Embedded C source markers were not found.'}; $source=$lines[($start+1)..($end-1)] -join [Environment]::NewLine; [System.IO.File]::WriteAllText($out,$source,(New-Object System.Text.UTF8Encoding($false)))"
 if errorlevel 1 (echo Could not extract embedded C source.&pause&exit /b 2)
 echo Building Driver API probe with "%CC%"...
-"%CC%" -O2 -o "%EXE%" "%SOURCE%" > "%REPORT%" 2>&1
+"%CC%" -O2 -static-libgcc -static-libstdc++ -o "%EXE%" "%SOURCE%" > "%REPORT%" 2>&1
 if errorlevel 1 (type "%REPORT%"&pause&exit /b 4)
 echo Running Driver API probe...
 "%EXE%" >> "%REPORT%" 2>&1
