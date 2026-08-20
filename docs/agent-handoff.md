@@ -110,3 +110,8 @@ validation result, architectural decision, or follow-up risk.
   Left/Right changes pane focus, Up/Down scrolls, Home resets the selected pane,
   Space pauses/resumes refresh, and `q` quits. JSON-lines and redirected/`-Once`
   modes never read console keys or emit control sequences.
+- The control-room pass follows familiar `top`/`ps` conventions: a compact
+  summary line, stable section headers, aligned process columns, explicit
+  pressure labels, and a short activity tail instead of repeatedly exposing
+  long transcript paths in the visual panel. The JSON snapshot retains the
+  complete transcript path and data.

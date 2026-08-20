@@ -37,7 +37,7 @@ param(
     [int] $ReleaseRefreshSeconds = 30,
     [string] $TranscriptPath,
     [ValidateRange(0, 20)]
-    [int] $TranscriptLines = 6,
+    [int] $TranscriptLines = 4,
     [ValidateRange(5, 10080)]
     [int] $WorkerLookbackMinutes = 240,
     [ValidateRange(1, 100)]
@@ -107,13 +107,15 @@ function Color-Line {
         $code = '31;1'
     } elseif ($Text -match '^\s*(CI PIPELINE|SYSTEM|CODEX WORKERS|CODEX TASK TAIL|BUSIEST PROCESSES)') {
         $code = '36;1'
-    } elseif ($Text -match '(?i)\[PASS|SUCCESS|unrestricted|Online') {
+    } elseif ($Text -match '(?i)\[PASS|SUCCESS|unrestricted|Online|pressure OK') {
         $code = '32'
-    } elseif ($Text -match '(?i)\[WAIT|RUN |DRAFT|not published|No open pull requests|power-saving|approval pending') {
+    } elseif ($Text -match '(?i)\[WAIT|RUN |DRAFT|not published|No open pull requests|power-saving|approval pending|pressure WARN') {
         $code = '33'
-    } elseif ($Text -match '^\s*CPU') {
+    } elseif ($Text -match '(?i)pressure HIGH') {
+        $code = '31;1'
+    } elseif ($Text -match '^\s*(CPU|all|core\s)') {
         $code = '36'
-    } elseif ($Text -match '^\s*(RAM|Commit|Paging)') {
+    } elseif ($Text -match '^\s*(RAM|Commit|Paging|MEMORY|POWER)') {
         $code = '35'
     } elseif ($Text -match '^\s*\+') {
         $code = '34'
@@ -412,6 +414,13 @@ function New-Bar {
     return ('#' * $filled) + ('-' * ($Width - $filled))
 }
 
+function Get-PressureLabel {
+    param([double] $PhysicalPercent, [double] $CommitPercent, [double] $PagesPerSecond)
+    if ($PhysicalPercent -ge 90 -or $CommitPercent -ge 90 -or $PagesPerSecond -ge 100) { return 'HIGH' }
+    if ($PhysicalPercent -ge 75 -or $CommitPercent -ge 75 -or $PagesPerSecond -ge 10) { return 'WARN' }
+    return 'OK'
+}
+
 function Get-PowerSnapshot {
     $errors = @()
     $plan = $null
@@ -603,7 +612,8 @@ function Get-SystemPanel {
     $lines += ''
     if ($Snapshot.Memory) {
         $memory = $Snapshot.Memory
-        $lines += '  MEMORY'
+        $pressure = Get-PressureLabel -PhysicalPercent $memory.PhysicalPercent -CommitPercent $memory.CommitPercent -PagesPerSecond $memory.PagesPerSecond
+        $lines += "  MEMORY  pressure $pressure"
         $lines += ('  RAM    [{0}] {1,3}%' -f (New-Bar $memory.PhysicalPercent $barWidth), [int]$memory.PhysicalPercent)
         $lines += ('         {0:N1}/{1:N1} GB' -f ($memory.PhysicalUsedMb / 1024), ($memory.PhysicalTotalMb / 1024))
         $lines += ('  Commit [{0}] {1,3}%' -f (New-Bar $memory.CommitPercent $barWidth), [int]$memory.CommitPercent)
@@ -612,14 +622,15 @@ function Get-SystemPanel {
     }
     $lines += ''
     $lines += ''
+    $nameWidth = [Math]::Max(8, $Width - 34)
     $lines += '  BUSIEST PROCESSES'
+    $lines += ('  ' + ('NAME'.PadRight($nameWidth)) + ' CPU   MEM   UPTIME')
     foreach ($process in @($Snapshot.Processes)) {
-        $nameWidth = [Math]::Max(8, $Width - 34)
         $name = Limit-Text ([string]$process.Name) $nameWidth
         $uptime = Format-DurationSeconds $process.UptimeSeconds
         $lines += ('  {0,-' + $nameWidth + '} {1,5:N1}% {2,7:N0} MB up {3}') -f $name, $process.CpuPercent, $process.PrivateWorkingSetMb, $uptime
     }
-    $lines += @($Snapshot.Errors)
+    $lines += @($Snapshot.Errors | ForEach-Object { "  ! $_" })
     return @($lines)
 }
 
@@ -679,7 +690,10 @@ function Get-PrPanel {
         ''
     )
     $records = @($PullRequests)
-    if ($records.Count -eq 0) { $lines += 'No open pull requests.' }
+    $passCount = @($records | Where-Object { (Get-CheckState @($_.PullRequest.statusCheckRollup)) -eq 'PASS' }).Count
+    $draftCount = @($records | Where-Object { $_.PullRequest.isDraft }).Count
+    $lines += ('  {0} pull requests | {1} passing | {2} draft' -f $records.Count, $passCount, $draftCount)
+    if ($records.Count -eq 0) { $lines += '  No open pull requests.' }
 
     foreach ($repoGroup in @($records | Group-Object Repository)) {
         $lines += ''
@@ -746,7 +760,7 @@ function Get-PrPanel {
         $lines += ''
         $lines += (New-PanelRule -Width $Width)
         $lines += 'CODEX TASK TAIL'
-        if ($Transcript) { $lines += "source: $Transcript" }
+        $lines += 'source: latest Codex activity'
         foreach ($message in @($Commentary)) {
             $time = try { ([DateTimeOffset]::Parse($message.Timestamp).ToLocalTime()).ToString('HH:mm:ss') } catch { '--:--:--' }
             $lines += "$time  $($message.Text)"
