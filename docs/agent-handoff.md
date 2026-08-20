@@ -35,3 +35,10 @@ validation result, architectural decision, or follow-up risk.
 - An issue is **maybe resolved / requires testing** only after the APK workflow
   succeeds for its branch. The workflow uploads downloadable and bundled debug
   APKs; the GitHub Project status, not a custom label, records *Ready for test*.
+
+## 2026-08-20 — Issue-driven workflow dry run
+
+- Issue #2 verified the remote agent workflow: issue intake from the Project
+  queue, an `agent/` branch based on `BETA-2`, a narrowly scoped documentation
+  commit, and a PR back to `BETA-2`. No application code or release branch was
+  changed.
