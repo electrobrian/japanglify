@@ -1,0 +1,4 @@
+# Local, machine-specific survey output. Share the chosen JSON handoff file
+# deliberately; do not commit it with the portable survey implementation.
+reports/
+
