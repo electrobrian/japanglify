@@ -16,8 +16,13 @@ measured.
 - Candidate parameter count used for raw storage arithmetic: `169,000,000`.
 - Physical host inventory: Windows 10 Home build 19045, AMD Athlon II X2 B24
   at 3.0 GHz, 16 GiB installed RAM, 44.14 GiB free on `C:`.
-- CUDA toolkit: `nvcc.exe` not found on PATH; `nvidia-smi.exe` not found on
-  PATH. This does not prove that no locally installed legacy runtime exists.
+- CUDA toolkit follow-up: CUDA Toolkit `v6.5` is installed at
+  `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v6.5`, and `nvcc.exe`
+  is on PATH. `nvidia-smi.exe` remains unavailable. No common CUDA samples
+  directory was found.
+- TPM follow-up: present, enabled, ready, activated, and owned; manufacturer
+  reports Infineon TPM 1.2 firmware `3.16`. No TPM integration is part of this
+  CUDA experiment.
 - Arithmetic precision: FP32 accumulation and FP32 recurrent state.
 - Batch size: **PENDING — requires Brian approval**.
 - Exact checkpoint tensor list, tied/untied output projection, quantization
@@ -67,7 +72,7 @@ working allowance is approximately **0.35 MiB**, before allocator alignment.
 | Logits/output buffer | 0.25-1 MiB | `65,536 * 4 = 262,144 bytes = 0.25 MiB` for one FP32 logits vector; extra buffers pending |
 | Runtime/driver overhead | 16-48 MiB | Planning estimate only; driver/toolkit allocation behavior is **PENDING PHYSICAL PROBE**; installed driver is 341.92 |
 | Alignment/fragmentation | 4-16 MiB | Planning allowance; measured allocator behavior is **PENDING PHYSICAL PROBE** |
-| Display reservation | **PENDING PHYSICAL PROBE** | WMI reports 256 MiB total adapter RAM, but active desktop reservation is not exposed by this inventory |
+| Display reservation | **PENDING PHYSICAL PROBE** | An active Generic PnP monitor is present, but WMI did not expose pixel dimensions or the desktop's VRAM reservation |
 | Safety reserve | 32 MiB minimum planning reserve | Configurable reserve per section 11.1; Brian must approve the final value |
 
 The runtime/driver, display, and safety categories cannot be established from
