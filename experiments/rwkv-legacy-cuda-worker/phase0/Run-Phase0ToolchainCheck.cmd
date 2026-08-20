@@ -17,12 +17,12 @@ echo CUDA_PATH=%CUDA_PATH% >>"%REPORT%"
 echo CUDA_PATH_V6_5=%CUDA_PATH_V6_5% >>"%REPORT%"
 >>"%REPORT%" echo.
 >>"%REPORT%" echo [Expected toolkit files]
-if exist "%ProgramFiles%\NVIDIA GPU Computing Toolkit\CUDA\v6.5\bin\nvcc.exe" (echo nvcc.exe: present) else (echo nvcc.exe: missing)
-if exist "%ProgramFiles%\NVIDIA GPU Computing Toolkit\CUDA\v6.5\bin\cudart64_65.dll" (echo cudart64_65.dll: present) else (echo cudart64_65.dll: missing)
-if exist "%ProgramFiles%\NVIDIA GPU Computing Toolkit\CUDA\v6.5\lib\x64\cudart.lib" (echo cudart.lib: present) else (echo cudart.lib: missing)
+if exist "%ProgramFiles%\NVIDIA GPU Computing Toolkit\CUDA\v6.5\bin\nvcc.exe" (>>"%REPORT%" echo nvcc.exe: present) else (>>"%REPORT%" echo nvcc.exe: missing)
+if exist "%ProgramFiles%\NVIDIA GPU Computing Toolkit\CUDA\v6.5\bin\cudart64_65.dll" (>>"%REPORT%" echo cudart64_65.dll: present) else (>>"%REPORT%" echo cudart64_65.dll: missing)
+if exist "%ProgramFiles%\NVIDIA GPU Computing Toolkit\CUDA\v6.5\lib\x64\cudart.lib" (>>"%REPORT%" echo cudart.lib: present) else (>>"%REPORT%" echo cudart.lib: missing)
 >>"%REPORT%" echo.
 >>"%REPORT%" echo [Common CUDA sample/device-query locations]
-for %%P in ("%ProgramData%\NVIDIA Corporation\CUDA Samples" "%ProgramFiles%\NVIDIA GPU Computing Toolkit\CUDA\v6.5\samples" "%USERPROFILE%\Documents\CUDA Samples") do if exist "%%~P" (echo present: %%~P) else (echo absent: %%~P)
+for %%P in ("%ProgramData%\NVIDIA Corporation\CUDA Samples" "%ProgramFiles%\NVIDIA GPU Computing Toolkit\CUDA\v6.5\samples" "%USERPROFILE%\Documents\CUDA Samples") do if exist "%%~P" (>>"%REPORT%" echo present: %%~P) else (>>"%REPORT%" echo absent: %%~P)
 >>"%REPORT%" echo.
 >>"%REPORT%" echo Phase 0 toolchain check complete. No compilation, allocation, kernel execution, driver, or network action was taken.
 
