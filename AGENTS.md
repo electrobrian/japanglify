@@ -23,8 +23,8 @@ it, and commits both the code and any new operational knowledge.
   `BETA-2` commit. A release tag is a later decision, not an automatic result
   of creating `BETA-3`.
 - A successful GitHub Actions APK build produces the downloadable artifacts.
-  Update the issue's **GitHub Project** status to *Ready for test*; do not
-  invent status labels. Keep standard GitHub labels for classification only.
+  Set the Project `Validation` field to *Ready for test*; use GitHub's
+  standard labels only for type and area, never workflow status.
 - State the validation actually performed. A passing domain test does not prove
   that the Android app compiled or that an accessibility interaction works.
 - If a decision changes setup, architecture, a known limitation, or a repeatable
