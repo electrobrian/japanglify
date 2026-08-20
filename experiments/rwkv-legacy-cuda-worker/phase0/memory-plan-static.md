@@ -19,8 +19,12 @@ measured.
 - CUDA toolkit follow-up: CUDA Toolkit `v6.5` is installed at
   `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v6.5`, and `nvcc.exe`
   is on PATH. `nvcc --version` reports release `6.5`, compiler version
-  `V6.5.13`. `nvidia-smi.exe` remains unavailable. No common CUDA samples
-  directory was reported by the first checker run.
+  `V6.5.13`. `cudart64_65.dll`, `cudart.lib`, and `nvcuda.dll` are present.
+  The driver DLL reports file/product version `8.17.13.4192` and product
+  `NVIDIA CUDA 6.5.51 driver`; WMI reported display driver `9.18.13.4192` /
+  `341.92`, so this version relationship must be preserved in the physical
+  probe record. `nvidia-smi.exe` remains unavailable. No CUDA samples or
+  `deviceQuery.exe` binary was found.
 - TPM follow-up: present, enabled, ready, activated, and owned; manufacturer
   reports Infineon TPM 1.2 firmware `3.16`. No TPM integration is part of this
   CUDA experiment.
