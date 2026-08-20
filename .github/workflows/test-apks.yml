@@ -1,20 +1,17 @@
 name: Build test APKs
 
 on:
-  push:
-    branches: [BETA-2, BETA-3, 'agent/**']
-    paths-ignore:
-      - '**/*.md'
-      - 'AGENTS.md'
-      - 'DEVELOPMENT.md'
-      - '.github/ISSUE_TEMPLATE/**'
+  workflow_dispatch:
   pull_request:
     branches: [BETA-2, BETA-3]
-    paths-ignore:
-      - '**/*.md'
-      - 'AGENTS.md'
-      - 'DEVELOPMENT.md'
-      - '.github/ISSUE_TEMPLATE/**'
+    paths:
+      - 'app/**'
+      - 'domain/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - 'gradle/**'
+      - '.github/workflows/test-apks.yml'
 
 permissions:
   contents: read
@@ -29,12 +26,18 @@ jobs:
           distribution: temurin
           java-version: '22'
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          # BETA-2 is an integration branch rather than the repository default
+          # branch. Let successful tester-ready PRs refresh reusable Gradle
+          # dependencies, transforms, compiled scripts, and local build-cache
+          # entries for the next PR.
+          cache-read-only: false
       - name: Create ephemeral debug keystore
         run: |
           mkdir -p app/build
           keytool -genkeypair -keystore app/build/local-debug.keystore -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=Android Debug,O=Android,C=US'
       - name: Build both test APKs
-        run: ./gradlew :app:assembleDownloadableDebug :app:assembleBundledDebug
+        run: ./gradlew --build-cache :app:assembleDownloadableDebug :app:assembleBundledDebug
       - name: Upload test APKs
         uses: actions/upload-artifact@v4
         with:
