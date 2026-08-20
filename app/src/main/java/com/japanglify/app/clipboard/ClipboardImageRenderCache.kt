@@ -3,7 +3,10 @@ package com.japanglify.app.clipboard
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
+import androidx.preference.PreferenceManager
 import com.japanglify.app.JapanglifyApp
+import com.japanglify.app.data.PreferencesRepository
+import com.japanglify.app.domain.JapanglifySettings
 import com.japanglify.app.domain.OutputFormat
 import java.util.concurrent.Callable
 import java.util.concurrent.ExecutionException
@@ -51,7 +54,21 @@ object ClipboardImageRenderCache {
         Thread(r, name).apply { priority = Thread.MIN_PRIORITY }
     }
 
-    private data class Job(val source: String, val future: Future<Uri>)
+    /**
+     * Identity of an image, rather than merely its source text. A user who
+     * tweaks width, colors, scripts, or font scale is asking for a new image;
+     * Copy and Insert for an unchanged request must share the same one.
+     */
+    private data class RenderKey(
+        val source: String,
+        val settings: JapanglifySettings,
+        val densityDpi: Int,
+        val fontScale: Float
+    )
+
+    private data class RenderRequest(val key: RenderKey, val settings: JapanglifySettings)
+
+    private data class Job(val key: RenderKey, val future: Future<Uri>)
 
     @Volatile
     private var current: Job? = null   // on-demand full render slot
@@ -71,7 +88,7 @@ object ClipboardImageRenderCache {
     @Volatile
     private var preemptiveFull: Job? = null
     @Volatile
-    private var preemptiveFullUri: Pair<String, Uri>? = null  // (source, uri) when done
+    private var preemptiveFullUri: Pair<RenderKey, Uri>? = null  // (request, uri) when done
 
     /**
      * Generation counter for preemptive work. Incremented on every new textual
@@ -89,7 +106,19 @@ object ClipboardImageRenderCache {
      */
     fun prerender(context: Context, source: String) {
         val appContext = context.applicationContext
-        current = Job(source, fullRenderExecutorForWrite.submit(Callable { renderNow(appContext, source) }))
+        val request = renderRequest(appContext, source)
+
+        // This is deliberately a one-deep cache. Copy image and Insert image
+        // arrive as two actions for the same result, so reuse the running or
+        // completed request instead of rendering a second PNG. A new request
+        // cancels the old one; there is no history cache to accumulate.
+        if (current?.key == request.key || preemptiveFull?.key == request.key ||
+            preemptiveFullUri?.first == request.key) return
+        current?.future?.cancel(true)
+        current = Job(
+            request.key,
+            fullRenderExecutorForWrite.submit(Callable { renderNow(appContext, request) })
+        )
     }
 
     /**
@@ -131,12 +160,13 @@ object ClipboardImageRenderCache {
      * It is only intended for the explicit "Copy image" user action path.
      */
     fun await(context: Context, source: String): Uri {
+        val request = renderRequest(context.applicationContext, source)
         // Fast path: a preemptive full render may have already finished for this exact source.
         val pre = preemptiveFullUri
-        if (pre != null && pre.first == source) return pre.second
+        if (pre != null && pre.first == request.key) return pre.second
 
         val job = current
-        if (job != null && job.source == source) {
+        if (job != null && job.key == request.key) {
             try {
                 // No short timeout for the user-initiated write path.
                 // We want to wait for a legitimately long render to finish.
@@ -145,7 +175,17 @@ object ClipboardImageRenderCache {
                 throw e.cause ?: e
             }
         }
-        return renderNow(context.applicationContext, source)
+        // If Copy and Insert race while the optional pre-render is in flight,
+        // wait for that exact job instead of starting an identical render.
+        val preemptive = preemptiveFull
+        if (preemptive != null && preemptive.key == request.key) {
+            try {
+                return preemptive.future.get()
+            } catch (e: ExecutionException) {
+                throw e.cause ?: e
+            }
+        }
+        return renderNow(context.applicationContext, request)
     }
 
     /**
@@ -169,13 +209,23 @@ object ClipboardImageRenderCache {
      */
     fun startPreemptive(context: Context, source: String) {
         val appContext = context.applicationContext
+        // Text is the fast path. Background image preparation is an explicit,
+        // opt-in convenience, never work imposed on text-only users.
+        if (!PreferenceManager.getDefaultSharedPreferences(appContext)
+                .getBoolean(PreferencesRepository.KEY_PREEMPTIVE_IMAGE_RENDER, false)) {
+            cancelPreviousPreemptive()
+            return
+        }
+        val request = renderRequest(appContext, source)
         val gen = ++preemptiveGeneration
 
         // Cancel any in-flight preemptive preview for a previous source.
         // We do not cancel on-demand work (current) — that is user-initiated.
+        currentPreviewJob?.future?.cancel(true)
         currentPreviewJob = null
-        // We leave the actual Future running; the renderers and completion blocks
-        // will see the bumped generation or a changed lastSource and drop the result.
+        preemptiveFull?.future?.cancel(true)
+        // Cancellation interrupts queued/running work where possible; generation
+        // checks inside the renderer are the reliable cooperative backstop.
 
         // Always try the cheap preview (fast, small, capped). It is the thing
         // users actually see in the notification shade.
@@ -205,19 +255,22 @@ object ClipboardImageRenderCache {
             preemptiveFull = null
             preemptiveFullUri = null
 
-            val abort = ClipboardImageRenderer.AbortCheck { gen != preemptiveGeneration || LastResultStore.lastSource != source }
+            val abort = ClipboardImageRenderer.AbortCheck {
+                Thread.currentThread().isInterrupted ||
+                    gen != preemptiveGeneration || LastResultStore.lastSource != source
+            }
             @Suppress("UNCHECKED_CAST")
             val fullF: Future<Uri> = preemptiveExecutor.submit(Callable<Uri?> {
                 if (gen != preemptiveGeneration || LastResultStore.lastSource != source) return@Callable null
-                runCatching { renderNow(appContext, source, abort) }.getOrNull()
+                runCatching { renderNow(appContext, request, abort) }.getOrNull()
             }) as Future<Uri>
-            preemptiveFull = Job(source, fullF)
+            preemptiveFull = Job(request.key, fullF)
 
             preemptiveExecutor.submit {
                 try {
                     val uri = fullF.get(60_000, TimeUnit.MILLISECONDS)
                     if (uri != null && gen == preemptiveGeneration && LastResultStore.lastSource == source) {
-                        preemptiveFullUri = source to uri
+                        preemptiveFullUri = request.key to uri
                     }
                 } catch (_: Exception) {
                     // too slow / cancelled / error — leave it; on-demand will render fresh
@@ -238,7 +291,9 @@ object ClipboardImageRenderCache {
      */
     fun cancelPreviousPreemptive() {
         ++preemptiveGeneration
+        currentPreviewJob?.future?.cancel(true)
         currentPreviewJob = null
+        preemptiveFull?.future?.cancel(true)
         preemptiveFull = null
         // We intentionally do *not* clear preemptiveFullUri here — a brand new
         // startPreemptive for the *new* source will overwrite it anyway, and
@@ -246,25 +301,59 @@ object ClipboardImageRenderCache {
     }
 
     /** If a preemptive full render already finished for this source, return its Uri. */
-    fun getPreemptiveFullUri(source: String): Uri? {
+    fun getPreemptiveFullUri(context: Context, source: String): Uri? {
         val p = preemptiveFullUri
-        return if (p != null && p.first == source) p.second else null
+        return if (p != null && p.first == renderRequest(context.applicationContext, source).key) p.second else null
     }
 
     // ── Internal render paths (cooperative w.r.t. generation) ──────────────────
 
-    private fun renderNow(context: Context, source: String, abort: ClipboardImageRenderer.AbortCheck? = null): Uri {
+    private fun renderRequest(context: Context, source: String): RenderRequest {
         val app = context.applicationContext as JapanglifyApp
         val baseSettings = app.preferences.load()
         val hostWidthPx = LastResultStore.lastHostFieldWidthPx
         val unitPx = ClipboardImageRenderer.fullwidthUnitPx(context)
-        val settingsForImage = if (hostWidthPx != null && hostWidthPx > 0 && unitPx > 0f) {
-            val usablePx = hostWidthPx - ClipboardImageRenderer.paddingPx(context) * 2
-            val units = (usablePx / unitPx).toInt().coerceIn(6, 40)
-            baseSettings.copy(maxLineWidthFullwidth = units)
+        val hostWidthUnits = if (hostWidthPx != null && hostWidthPx > 0 && unitPx > 0f) {
+            ((hostWidthPx - ClipboardImageRenderer.paddingPx(context) * 2) / unitPx)
+                .toInt()
+                .coerceAtLeast(6)
+        } else {
+            null
+        }
+        // The configured width is the requested wrap target. The captured
+        // host field is still a useful minimum for a short selection: do not
+        // create a narrow image when it is going straight back into a wider
+        // chat/editor. Unlike the old heuristic, it never replaces a wider
+        // width the user deliberately selected. Zero means unlimited and
+        // remains unlimited regardless of the host.
+        val settingsForImage = if (
+            hostWidthUnits != null &&
+            baseSettings.maxLineWidthFullwidth > 0
+        ) {
+            baseSettings.copy(
+                maxLineWidthFullwidth = maxOf(
+                    baseSettings.maxLineWidthFullwidth,
+                    hostWidthUnits
+                )
+            )
         } else {
             baseSettings
         }
+        val config = context.resources.configuration
+        return RenderRequest(
+            RenderKey(source, settingsForImage, config.densityDpi, config.fontScale),
+            settingsForImage
+        )
+    }
+
+    private fun renderNow(
+        context: Context,
+        request: RenderRequest,
+        abort: ClipboardImageRenderer.AbortCheck? = null
+    ): Uri {
+        val app = context.applicationContext as JapanglifyApp
+        val source = request.key.source
+        val settingsForImage = request.settings
         val bitmap = if (settingsForImage.outputFormat == OutputFormat.INTERLINEAR) {
             val rows = checkNotNull(app.engine.buildInterlinearRows(source, settingsForImage).takeIf { it.isNotEmpty() }) {
                 "No interlinear rows for source"

@@ -1,0 +1,49 @@
+name: Bug report
+description: Report a reproducible Japanglify defect.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include clipboard contents, account data, API tokens, or device identifiers.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior and why it is incorrect.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Open...
+        2. Select...
+        3. Tap...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected surface
+      options:
+        - Accessibility chip
+        - Share target
+        - Selection menu
+        - Clipboard fallback
+        - Settings
+        - Image/PDF output
+        - Build/developer tooling
+  - type: textarea
+    id: validation
+    attributes:
+      label: Device and validation context
+      description: Android version, app build, and whether this was reproduced on-device.

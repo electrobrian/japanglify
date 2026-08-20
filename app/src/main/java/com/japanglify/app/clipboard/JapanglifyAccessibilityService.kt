@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityButtonController
 import android.accessibilityservice.AccessibilityService
 import android.content.ClipboardManager
 import android.content.Intent
+import android.content.SharedPreferences
 import android.graphics.Rect
 import android.os.Handler
 import android.os.Looper
@@ -11,6 +12,7 @@ import android.os.SystemClock
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.preference.PreferenceManager
+import com.japanglify.app.JapanglifyApp
 import com.japanglify.app.data.PreferencesRepository
 
 /**
@@ -77,6 +79,17 @@ class JapanglifyAccessibilityService : AccessibilityService() {
     }
 
     private val hideOverlayRunnable = Runnable { overlay?.hide() }
+    private val refreshPreviewRunnable = Runnable { refreshPreviewLens() }
+    private val preferenceListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+        // A setting edit can emit several intermediate writes. Rebuild the
+        // text-only lens once from the final settings snapshot instead.
+        if (overlay?.activePreviewSource() != null) {
+            mainHandler.removeCallbacks(refreshPreviewRunnable)
+            mainHandler.postDelayed(refreshPreviewRunnable, PREVIEW_REFRESH_DEBOUNCE_MS)
+        }
+    }
+    /** Package that owned the text selection currently represented by the chip. */
+    private var overlayHostPackage: String? = null
 
     private val selectionDebounce = Runnable {
         val cap = pendingSelection
@@ -89,6 +102,7 @@ class JapanglifyAccessibilityService : AccessibilityService() {
         // into the on-screen overlay (see wantsSelectionOverlay).
         if (ClipboardProcessor.isAssistWanted(this) && wantsSelectionOverlay()) {
             mainHandler.removeCallbacks(hideOverlayRunnable)
+            overlayHostPackage = cap.packageName
             overlay?.show(cap.text, cap.bounds)
         }
     }
@@ -105,6 +119,13 @@ class JapanglifyAccessibilityService : AccessibilityService() {
         clipboard = getSystemService(ClipboardManager::class.java)
         clipboard?.addPrimaryClipChangedListener(clipListener)
         overlay = SelectionActionOverlay(this)
+        // onServiceConnected can be called again after a service rebind.
+        // Keep exactly one listener so a single settings edit means one
+        // debounced preview refresh.
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .unregisterOnSharedPreferenceChangeListener(preferenceListener)
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .registerOnSharedPreferenceChangeListener(preferenceListener)
         mainHandler.post(pollRunnable)
         CopyHookDiagnostics.log(this, "service connected — Copy hook active")
         // Visible proof the service is alive (not just the system a11y icon)
@@ -166,6 +187,16 @@ class JapanglifyAccessibilityService : AccessibilityService() {
         PreferenceManager.getDefaultSharedPreferences(this)
             .getBoolean(PreferencesRepository.KEY_CUT_REPLACE, true)
 
+    /** Refreshes the lightweight text preview without posting another notification. */
+    private fun refreshPreviewLens() {
+        val source = overlay?.activePreviewSource() ?: return
+        val app = applicationContext as? JapanglifyApp ?: return
+        val result = runCatching { app.engine.expand(source, app.preferences.load()) }.getOrNull()
+            ?: return
+        LastResultStore.save(this, source, result)
+        overlay?.showResultCard(source, result)
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         if (!ClipboardProcessor.isAssistWanted(this)) {
@@ -194,6 +225,14 @@ class JapanglifyAccessibilityService : AccessibilityService() {
                     lastSelectedText = captured.text
                     mainHandler.removeCallbacks(selectionDebounce)
                     mainHandler.postDelayed(selectionDebounce, 80L)
+                } else {
+                    // A cursor move after a real selection is the reliable
+                    // signal that the source selection was cleared. Do not
+                    // dismiss on an ordinary click: Android emits those while
+                    // it opens its own selection toolbar, which used to make
+                    // the Japanglify chip disappear almost immediately.
+                    mainHandler.removeCallbacks(hideOverlayRunnable)
+                    mainHandler.postDelayed(hideOverlayRunnable, 500L)
                 }
             }
             AccessibilityEvent.TYPE_VIEW_CLICKED -> {
@@ -215,12 +254,16 @@ class JapanglifyAccessibilityService : AccessibilityService() {
                         CopyHookDiagnostics.log(this, "Copy click detected")
                         scheduleCopyPipeline("copy_click")
                     }
-                    !looksLikeOurChip(event) -> {
-                        mainHandler.postDelayed(hideOverlayRunnable, 250L)
-                    }
+                    else -> Unit
                 }
             }
-            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> overlay?.hide()
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
+                // Selection controls are usually rendered by System UI in a
+                // separate window. Treating every window-state notification
+                // as navigation made the chip vanish as soon as those
+                // controls appeared. Only a real app switch dismisses it.
+                if (isRealAppWindowChange(event)) overlay?.hide()
+            }
             else -> Unit
         }
     }
@@ -374,16 +417,7 @@ class JapanglifyAccessibilityService : AccessibilityService() {
                                 // has to tap a "Tap to process" notification.
                                 CopyHookDiagnostics.log(this, "clipboard hidden/denied — auto-launch focused processor")
                                 ClipboardNotifications.cancelTapToProcess(this)
-                                try {
-                                    startActivity(
-                                        Intent(this, ProcessClipboardActivity::class.java)
-                                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    )
-                                } catch (_: Exception) {
-                                    // Rare: couldn't launch the focused shim.
-                                    // Only then surface the explicit notification.
-                                    ClipboardNotifications.showTapToProcess(this)
-                                }
+                                ProcessClipboardActivity.launch(this)
                             }
                         }
                     }
@@ -546,7 +580,11 @@ class JapanglifyAccessibilityService : AccessibilityService() {
         }
     }
 
-    private data class CapturedSelection(val text: String, val bounds: Rect?)
+    private data class CapturedSelection(
+        val text: String,
+        val bounds: Rect?,
+        val packageName: String?
+    )
 
     private fun captureSelection(event: AccessibilityEvent): CapturedSelection? {
         val source = event.source
@@ -562,7 +600,7 @@ class JapanglifyAccessibilityService : AccessibilityService() {
                 // event's own text list is the only signal we get.
                 val selected = fromEventList
                 if (selected.isBlank()) return null
-                return CapturedSelection(selected, null)
+                return CapturedSelection(selected, null, event.packageName?.toString())
             }
 
             val start = source.textSelectionStart
@@ -585,7 +623,11 @@ class JapanglifyAccessibilityService : AccessibilityService() {
             }?.trim().orEmpty()
 
             if (selected.isBlank()) return null
-            return CapturedSelection(selected, if (bounds.isEmpty) null else Rect(bounds))
+            return CapturedSelection(
+                selected,
+                if (bounds.isEmpty) null else Rect(bounds),
+                event.packageName?.toString()
+            )
         } finally {
             if (source != null) recycleSafely(source)
         }
@@ -597,6 +639,8 @@ class JapanglifyAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         mainHandler.removeCallbacksAndMessages(null)
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .unregisterOnSharedPreferenceChangeListener(preferenceListener)
         clipboard?.removePrimaryClipChangedListener(clipListener)
         clipboard = null
         a11yButtonCallback?.let { accessibilityButtonController.unregisterAccessibilityButtonCallback(it) }
@@ -611,6 +655,20 @@ class JapanglifyAccessibilityService : AccessibilityService() {
     private fun looksLikeOurChip(event: AccessibilityEvent): Boolean {
         val t = eventLabel(event)
         return t.contains("japanglify")
+    }
+
+    private fun isRealAppWindowChange(event: AccessibilityEvent): Boolean {
+        val host = overlayHostPackage ?: return false
+        val changedTo = event.packageName?.toString() ?: return false
+        if (changedTo == host) return false
+
+        // Android's text-selection toolbar, keyboard and system chrome can
+        // all report a window-state change while the selected app remains in
+        // front. They must not dismiss an accessibility overlay anchored to
+        // that selection.
+        return changedTo != "android" &&
+            !changedTo.startsWith("com.android.systemui") &&
+            !changedTo.startsWith("com.google.android.inputmethod")
     }
 
     private fun looksLikeCutAction(event: AccessibilityEvent): Boolean {
@@ -667,6 +725,7 @@ class JapanglifyAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val POLL_MS = 400L
+        private const val PREVIEW_REFRESH_DEBOUNCE_MS = 180L
 
         @Volatile
         var instance: JapanglifyAccessibilityService? = null

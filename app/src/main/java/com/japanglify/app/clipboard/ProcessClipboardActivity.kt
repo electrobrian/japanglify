@@ -1,6 +1,8 @@
 package com.japanglify.app.clipboard
 
 import android.app.Activity
+import android.content.Context
+import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
@@ -79,6 +81,23 @@ class ProcessClipboardActivity : Activity() {
             else -> {
                 // DISABLED, NO_JAPANESE, TOO_LONG, SELF_WRITE, etc.
                 finish()
+            }
+        }
+    }
+
+    companion object {
+        /**
+         * Restore foreground clipboard access without making the user approve
+         * a second notification.  Android may reject a background activity
+         * launch on some OEM builds; that case is intentionally silent rather
+         * than turning a normal Copy into a "tap to process" chore.
+         */
+        fun launch(context: Context) {
+            runCatching {
+                context.startActivity(
+                    Intent(context, ProcessClipboardActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
             }
         }
     }

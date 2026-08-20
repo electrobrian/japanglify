@@ -22,7 +22,10 @@ class ClipboardAssistService : Service() {
     private val clipListener = ClipboardManager.OnPrimaryClipChangedListener {
         if (LastResultStore.isSuppressing()) return@OnPrimaryClipChangedListener
         mainHandler.removeCallbacks(processRunnable)
-        mainHandler.postDelayed(processRunnable, 120L)
+        // Read on the callback turn.  Waiting here gives Android and some
+        // hosts an opportunity to clear a sensitive/ephemeral clipboard
+        // before our foreground service can see the copied Japanese text.
+        mainHandler.post(processRunnable)
     }
 
     private val processRunnable = Runnable {
@@ -41,15 +44,7 @@ class ClipboardAssistService : Service() {
                     // rich result notification. No "Tap to process" notification
                     // is required for the user.
                     ClipboardNotifications.cancelTapToProcess(this)
-                    try {
-                        startActivity(
-                            Intent(this, ProcessClipboardActivity::class.java)
-                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        )
-                    } catch (_: Exception) {
-                        // Rare launch failure — fall back to the explicit notif.
-                        ClipboardNotifications.showTapToProcess(this)
-                    }
+                    ProcessClipboardActivity.launch(this)
                 }
             }
             else -> Unit

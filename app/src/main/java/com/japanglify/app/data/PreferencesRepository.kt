@@ -168,6 +168,8 @@ class PreferencesRepository(context: Context) {
         const val KEY_CLIPBOARD_ASSIST = "clipboard_assist"
         const val KEY_CLIPBOARD_FGS_FALLBACK = "clipboard_fgs_fallback"
         const val KEY_SELECTION_OVERLAY = "selection_overlay"
+        /** Opt-in background image preparation; disabled to keep text conversion lean. */
+        const val KEY_PREEMPTIVE_IMAGE_RENDER = "preemptive_image_render"
         const val KEY_CUT_REPLACE = "cut_replace"
         const val KEY_OPEN_ACCESSIBILITY = "open_accessibility"
         const val KEY_A11Y_STATUS = "a11y_status"

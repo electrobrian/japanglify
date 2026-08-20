@@ -3,15 +3,44 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
-    <Preference
-        app:key="options_heading"
-        app:selectable="false"
-        app:title="@string/options_heading" />
+    <com.japanglify.app.ui.TryItCardPreference
+        app:key="try_it_card"
+        app:selectable="false" />
 
-    <Preference
-        app:key="reset_services"
-        app:title="@string/pref_reset_services"
-        app:summary="@string/pref_reset_services_summary" />
+    <PreferenceCategory app:title="@string/pref_category_selection_chip">
+        <SwitchPreferenceCompat
+            app:defaultValue="true"
+            app:key="clipboard_assist"
+            app:summary="@string/pref_clipboard_assist_summary"
+            app:title="@string/pref_clipboard_assist" />
+        <Preference
+            app:key="open_accessibility"
+            app:summary="@string/pref_open_accessibility_summary"
+            app:title="@string/pref_open_accessibility" />
+        <Preference
+            app:key="a11y_status"
+            app:selectable="false"
+            app:summary="@string/a11y_status_unknown"
+            app:title="@string/pref_a11y_status" />
+        <SwitchPreferenceCompat
+            android:layout="@layout/preference_indented"
+            app:defaultValue="true"
+            app:dependency="clipboard_assist"
+            app:key="selection_overlay"
+            app:summary="@string/pref_selection_overlay_summary"
+            app:title="@string/pref_selection_overlay" />
+    </PreferenceCategory>
+
+    <PreferenceCategory app:title="@string/pref_category_share_targets">
+        <Preference
+            app:key="save_share_target"
+            app:summary="@string/pref_save_share_target_summary"
+            app:title="@string/pref_save_share_target" />
+        <Preference
+            app:key="manage_share_targets"
+            app:summary="@string/pref_manage_share_targets_summary"
+            app:title="@string/pref_manage_share_targets" />
+    </PreferenceCategory>
 
     <PreferenceCategory app:title="@string/pref_category_scripts">
         <SwitchPreferenceCompat
@@ -67,55 +96,6 @@
             app:useSimpleSummaryProvider="true" />
     </PreferenceCategory>
 
-    <PreferenceCategory app:title="@string/pref_category_clipboard">
-        <SwitchPreferenceCompat
-            app:defaultValue="false"
-            app:key="clipboard_assist"
-            app:summary="@string/pref_clipboard_assist_summary"
-            app:title="@string/pref_clipboard_assist" />
-        <Preference
-            app:key="open_accessibility"
-            app:summary="@string/pref_open_accessibility_summary"
-            app:title="@string/pref_open_accessibility" />
-        <Preference
-            app:key="a11y_status"
-            app:selectable="false"
-            app:summary="@string/a11y_status_unknown"
-            app:title="@string/pref_a11y_status" />
-        <SwitchPreferenceCompat
-            android:layout="@layout/preference_indented"
-            app:defaultValue="false"
-            app:dependency="clipboard_assist"
-            app:key="clipboard_fgs_fallback"
-            app:summary="@string/pref_clipboard_fgs_summary"
-            app:title="@string/pref_clipboard_fgs" />
-        <SwitchPreferenceCompat
-            android:layout="@layout/preference_indented"
-            app:defaultValue="false"
-            app:dependency="clipboard_assist"
-            app:key="selection_overlay"
-            app:summary="@string/pref_selection_overlay_summary"
-            app:title="@string/pref_selection_overlay" />
-        <SwitchPreferenceCompat
-            android:layout="@layout/preference_indented"
-            app:defaultValue="true"
-            app:dependency="clipboard_assist"
-            app:key="cut_replace"
-            app:summary="@string/pref_cut_replace_summary"
-            app:title="@string/pref_cut_replace" />
-    </PreferenceCategory>
-
-    <PreferenceCategory app:title="@string/pref_category_share_targets">
-        <Preference
-            app:key="save_share_target"
-            app:summary="@string/pref_save_share_target_summary"
-            app:title="@string/pref_save_share_target" />
-        <Preference
-            app:key="manage_share_targets"
-            app:summary="@string/pref_manage_share_targets_summary"
-            app:title="@string/pref_manage_share_targets" />
-    </PreferenceCategory>
-
     <PreferenceCategory app:title="@string/pref_category_phonetics">
         <ListPreference
             app:defaultValue="hepburn_modified"
@@ -154,6 +134,11 @@
             app:summary="@string/pref_image_color_scheme_summary"
             app:title="@string/pref_image_color_scheme"
             app:useSimpleSummaryProvider="true" />
+        <SwitchPreferenceCompat
+            app:defaultValue="false"
+            app:key="preemptive_image_render"
+            app:summary="@string/pref_preemptive_image_render_summary"
+            app:title="@string/pref_preemptive_image_render" />
         <EditTextPreference
             android:layout="@layout/preference_indented"
             android:inputType="textNoSuggestions"
@@ -277,12 +262,29 @@
             app:title="@string/pref_emoji_pos_scope" />
     </PreferenceCategory>
 
+    <PreferenceCategory app:title="@string/pref_category_clipboard">
+        <SwitchPreferenceCompat
+            android:layout="@layout/preference_indented"
+            app:defaultValue="false"
+            app:dependency="clipboard_assist"
+            app:key="clipboard_fgs_fallback"
+            app:summary="@string/pref_clipboard_fgs_summary"
+            app:title="@string/pref_clipboard_fgs" />
+        <SwitchPreferenceCompat
+            android:layout="@layout/preference_indented"
+            app:defaultValue="true"
+            app:dependency="clipboard_assist"
+            app:key="cut_replace"
+            app:summary="@string/pref_cut_replace_summary"
+            app:title="@string/pref_cut_replace" />
+        <Preference
+            app:key="reset_services"
+            app:title="@string/pref_reset_services"
+            app:summary="@string/pref_reset_services_summary" />
+    </PreferenceCategory>
+
     <com.japanglify.app.ui.StatusCardPreference
         app:key="status_card"
-        app:selectable="false" />
-
-    <com.japanglify.app.ui.TryItCardPreference
-        app:key="try_it_card"
         app:selectable="false" />
 
     <PreferenceCategory app:title="@string/pref_category_help">

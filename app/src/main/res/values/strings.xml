@@ -34,6 +34,8 @@
     <string name="pref_custom_line_elision_marker_summary">Used only when the marker above is set to \"Custom…\". One character; if you enter more, only the first is used. A glyph that can also appear in real text (a check mark, an emoji) becomes indistinguishable from the marker.</string>
     <string name="pref_image_color_scheme">Image color scheme</string>
     <string name="pref_image_color_scheme_summary">Colors for the \"Copy image\" output — background and per-role text (base, furigana, romaji, gloss). Whatever scheme you pick, text is auto-adjusted to stay legible against its background. Plain-text output is unaffected.</string>
+    <string name="pref_preemptive_image_render">Prepare images in the background</string>
+    <string name="pref_preemptive_image_render_summary">Off by default. When enabled, Japanglify starts a low-priority, cancellable image preview after text conversion so Copy image can be faster. Leave off to keep text-only work lean.</string>
     <string name="pref_custom_image_color_summary">Used only when the scheme above is \"Custom…\". Enter a hex color like #RRGGBB. Text is still auto-adjusted for legibility against your background.</string>
     <string name="pref_custom_image_bg_color">Custom: background color</string>
     <string name="pref_custom_image_base_color">Custom: base text color</string>
@@ -51,8 +53,8 @@
     <string name="output_format_preview_heading">Preview — how each format renders "日本語"; the selected one is bold</string>
     <string name="output_format_preview_sample">日本語</string>
     <string name="output_format_preview_selected_label">✓ %1$s</string>
-    <string name="pref_max_line_width">Max line width (fullwidth chars)</string>
-    <string name="pref_max_line_width_summary">Wrap interlinear so each row fits this many あ-width cells. Default 14 is narrow. Use 40–80+ (or 0 = unlimited) for wide blocks of rendered text.</string>
+    <string name="pref_max_line_width">Image width (fullwidth characters)</string>
+    <string name="pref_max_line_width_summary">Controls wrapping in generated images from both Copy image and Share. Default 14 is narrow; use 40–80+ for wider images, or 0 for unlimited.</string>
     <string name="max_line_width_preview_heading">Preview — actual wrap depends on the host\'s font/size</string>
     <string name="max_line_width_preview_small">Small (sans-serif, 12sp)</string>
     <string name="max_line_width_preview_default">Default (sans-serif, 16sp)</string>
@@ -138,9 +140,10 @@
     <string name="pref_reset_services_summary">Restarts the Copy-assist foreground service (if enabled) and refreshes the conversion engine. If Accessibility (the main Copy hook) is off, opens Accessibility settings so you can turn it back on — apps can\'t re-enable it automatically.</string>
     <string name="reset_services_done">Background services reset</string>
 
-    <string name="pref_category_clipboard">Copy assist (for apps without PROCESS_TEXT)</string>
-    <string name="pref_clipboard_assist">Process on Copy (recommended)</string>
-    <string name="pref_clipboard_assist_summary">Main path: select text → tap Copy → Japanglify runs automatically → result notification → tap to copy → Paste. Uses Accessibility (required). Optional floating chip on selection is extra.</string>
+    <string name="pref_category_selection_chip">Selection chip</string>
+    <string name="pref_category_clipboard">Copy, Cut &amp; Paste fallback</string>
+    <string name="pref_clipboard_assist">Enable Japanglify selection features</string>
+    <string name="pref_clipboard_assist_summary">Primary path: select text, then tap the Japanglify chip. Requires Accessibility. The older Copy, Cut and Paste hooks are optional fallbacks below.</string>
     <string name="pref_open_accessibility">Open Accessibility settings</string>
     <string name="pref_open_accessibility_summary">Required: enable “Japanglify Copy assist”. Copy detection will not work without this.</string>
     <string name="pref_a11y_status">Accessibility service</string>
@@ -149,8 +152,8 @@
     <string name="a11y_status_off">Off — enable this for the Copy hook</string>
     <string name="pref_clipboard_fgs">Also use foreground service (optional)</string>
     <string name="pref_clipboard_fgs_summary">Extra clipboard listener with a persistent notification. Prefer Accessibility alone when possible.</string>
-    <string name="pref_selection_overlay">Show floating chip on selection (optional)</string>
-    <string name="pref_selection_overlay_summary">Draws a Japanglify chip over the app when you select text. Off by default — it covers screen space and isn\'t needed if you use Copy or the result notification. Turning it off does not affect Copy detection.</string>
+    <string name="pref_selection_overlay">Show Japanglify chip on selection</string>
+    <string name="pref_selection_overlay_summary">Shows the primary in-context action when you select text. Turning it off leaves Share and the fallback controls available.</string>
     <string name="pref_cut_replace">Replace text on Cut</string>
     <string name="pref_cut_replace_summary">When you Cut Japanese text in an editable field, replace it in place with the Japanglified version. Separate from Copy (which only shows a result notification). Turn off to leave Cut as an ordinary system cut. Needs Accessibility, same as Copy.</string>
 

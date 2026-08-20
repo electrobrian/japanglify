@@ -41,6 +41,15 @@
                 android:src="@android:drawable/ic_menu_close_clear_cancel" />
         </RelativeLayout>
 
+        <TextView
+            android:id="@+id/card_preview_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:text="@string/overlay_preview_status"
+            android:textColor="#B0BEC5"
+            android:textSize="12sp" />
+
         <!-- Result Text Content -->
         <ScrollView
             android:layout_width="match_parent"
@@ -65,12 +74,21 @@
             android:orientation="horizontal">
 
             <Button
-                android:id="@+id/btn_translate"
+                android:id="@+id/btn_settings"
                 style="?android:attr/borderlessButtonStyle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="@string/overlay_action_translate"
+                android:text="@string/overlay_action_settings"
                 android:textColor="#81D4FA" />
+
+            <Button
+                android:id="@+id/btn_copy_image"
+                style="?android:attr/borderlessButtonStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="@string/overlay_action_copy_as_image"
+                android:textColor="#FFD180" />
 
             <Button
                 android:id="@+id/btn_copy"

@@ -83,6 +83,9 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for how the pieces fit together
 (the two independent entry points into the conversion engine, the
 clipboard/accessibility assist pipeline, and the build setup).
 
+For the validated Windows/Codex workstation setup, USB debugging loop, and
+safe GitHub fork/push handoff, see [DEVELOPMENT.md](DEVELOPMENT.md).
+
 ## Build without the Android SDK (domain)
 
 The core conversion pipeline is a pure JVM module. You only need **JDK 17+** (21 recommended) and the Gradle wrapper — **no Android SDK, no Android Studio**.
@@ -91,6 +94,13 @@ The core conversion pipeline is a pure JVM module. You only need **JDK 17+** (21
 ./scripts/verify-domain.sh
 # or:
 ./gradlew :domain:test :domain:runDemo
+```
+
+On Windows, use the native wrapper from PowerShell or Command Prompt (no
+Git Bash or WSL required):
+
+```powershell
+.\gradlew.bat :domain:test :domain:runDemo
 ```
 
 Demo (optional custom text, kana works offline without Kuromoji):

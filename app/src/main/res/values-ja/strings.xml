@@ -24,8 +24,10 @@
 
     <string name="pref_category_rendering">表示形式</string>
     <string name="pref_output_format">出力フォーマット</string>
-    <string name="pref_max_line_width">最大行幅（全角単位）</string>
-    <string name="pref_max_line_width_summary">インターリニアをこの全角幅で折り返し。既定 14 は狭い。広いブロック用に 40–80+（または 0＝無制限）を使う。</string>
+    <string name="pref_max_line_width">画像幅（全角文字数）</string>
+    <string name="pref_max_line_width_summary">［画像をコピー］と共有で生成する画像の折り返し幅を設定します。既定値は 14。より広い画像には 40～80 以上、無制限には 0 を使います。</string>
+    <string name="pref_preemptive_image_render">画像をバックグラウンドで準備</string>
+    <string name="pref_preemptive_image_render_summary">既定ではオフ。オンにすると、テキスト変換後に低優先度かつキャンセル可能な画像プレビューを準備し、［画像をコピー］を速くします。テキストだけの処理を軽く保つにはオフのままにします。</string>
     <string name="max_line_width_preview_heading">プレビュー — 実際の折り返しはホストのフォント／サイズ次第</string>
     <string name="max_line_width_preview_small">小 (sans-serif, 12sp)</string>
     <string name="max_line_width_preview_default">標準 (sans-serif, 16sp)</string>
@@ -74,9 +76,10 @@
     <string name="try_it_done">変換しました</string>
     <string name="options_heading">オプション</string>
 
-    <string name="pref_category_clipboard">コピー支援（PROCESS_TEXT 非対応アプリ向け）</string>
-    <string name="pref_clipboard_assist">コピー時に変換（推奨）</string>
-    <string name="pref_clipboard_assist_summary">主経路: 文字を選択 → コピー → 自動 Japanglify → 結果通知 → タップでコピー → 貼り付け。アクセシビリティ必須。選択時の浮かぶチップは補助です。</string>
+    <string name="pref_category_selection_chip">選択チップ</string>
+    <string name="pref_category_clipboard">コピー・切り取り・貼り付けの代替機能</string>
+    <string name="pref_clipboard_assist">Japanglify の選択機能を有効にする</string>
+    <string name="pref_clipboard_assist_summary">主な流れ：テキストを選択して Japanglify チップをタップします。アクセシビリティが必要です。従来のコピー・切り取り・貼り付けフックは下の代替機能です。</string>
     <string name="pref_open_accessibility">アクセシビリティ設定を開く</string>
     <string name="pref_open_accessibility_summary">必須: 「Japanglify コピー支援」をオン。コピー検出はこの設定が本体です。</string>
     <string name="pref_a11y_status">アクセシビリティサービス</string>
@@ -127,5 +130,8 @@
     <string name="notif_field_replace_failed">置き換えできませんでした — 代わりにテキストをコピーしてください</string>
     <string name="overlay_action_translate">翻訳</string>
     <string name="overlay_action_copy">コピー</string>
+    <string name="overlay_action_copy_as_image">画像としてコピー</string>
+    <string name="overlay_action_settings">設定</string>
+    <string name="overlay_preview_status">ライブプレビュー — 設定変更後に更新</string>
     <string name="overlay_action_close">閉じる</string>
 </resources>

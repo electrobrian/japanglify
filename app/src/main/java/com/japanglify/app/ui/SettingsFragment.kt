@@ -427,23 +427,13 @@ class SettingsFragment : PreferenceFragmentCompat() {
             return
         }
 
-        val expanded = expandOrToast(source) ?: return
-
-        if (hasSelection) {
-            tryItCard.replaceRange(minOf(start, end), maxOf(start, end), expanded)
-            updateLiveOutput()
-        } else {
-            // Whole-field convert replaces the input with `expanded` itself —
-            // the TextWatcher this triggers would otherwise re-run engine.expand
-            // on that already-converted text 180ms later (scheduleLivePreview's
-            // debounce), producing a garbled double-conversion. We already know
-            // the correct output, so cancel that reschedule and set it directly.
-            tryItCard.setText(expanded)
-            tryItCard.setSelectionEnd(expanded.length)
-            liveRunnable?.let { liveHandler.removeCallbacks(it) }
-            val app = requireContext().applicationContext as JapanglifyApp
-            tryItCard.setOutput(buildPreviewOutput(app, source, app.preferences.load()))
-        }
+        // Keep the editor as source text.  Replacing it with the expansion made
+        // the next live-preview pass process furigana/romaji padding as if it
+        // were new Japanese input, and made it impossible to adjust the source
+        // and convert it again.
+        expandOrToast(source) ?: return
+        val app = requireContext().applicationContext as JapanglifyApp
+        tryItCard.setOutput(buildPreviewOutput(app, source, app.preferences.load()))
         Toast.makeText(requireContext(), R.string.try_it_done, Toast.LENGTH_SHORT).show()
     }
 
@@ -465,9 +455,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
         val expanded = expandOrToast(text) ?: return
         val app = requireContext().applicationContext as JapanglifyApp
         findPreference<TryItCardPreference>(KEY_TRY_IT_CARD)?.let { card ->
-            card.setText(expanded)
-            // Same double-conversion hazard as japanglifyTryItField() above.
-            liveRunnable?.let { liveHandler.removeCallbacks(it) }
+            // Show the raw clipboard text as editable source.  The conversion
+            // belongs in the output pane and on the clipboard, not in this
+            // input field, otherwise previewing it converts the result again.
+            card.setText(text)
             card.setOutput(buildPreviewOutput(app, text, app.preferences.load()))
         }
         LastResultStore.writeToClipboard(requireContext(), expanded)

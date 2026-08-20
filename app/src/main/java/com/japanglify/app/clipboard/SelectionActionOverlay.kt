@@ -1,6 +1,7 @@
 package com.japanglify.app.clipboard
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Intent
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.os.Build
@@ -15,6 +16,7 @@ import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 import com.japanglify.app.R
+import com.japanglify.app.SettingsActivity
 
 /**
  * Accessibility overlay chip and floating result card.
@@ -33,6 +35,7 @@ class SelectionActionOverlay(
 
     // Floating Result Card Overlay
     private var cardRoot: FrameLayout? = null
+    private var previewSource: String? = null
 
     fun show(text: String, anchorOnScreen: Rect?) {
         val trimmed = text.trim()
@@ -88,6 +91,7 @@ class SelectionActionOverlay(
 
     fun showResultCard(sourceText: String, resultText: String) {
         hide()
+        previewSource = sourceText
         ensureCardView()
         val card = cardRoot ?: return
 
@@ -103,9 +107,20 @@ class SelectionActionOverlay(
             hideResultCard()
         }
 
-        card.findViewById<Button>(R.id.btn_translate)?.setOnClickListener {
-            TranslateHelper.launchGoogleTranslate(service, sourceText)
+        card.findViewById<Button>(R.id.btn_copy_image)?.setOnClickListener {
+            service.startActivity(
+                Intent(service, ClipboardWriteActivity::class.java)
+                    .setAction(ClipboardAssistReceiver.ACTION_COPY_IMAGE)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
             hideResultCard()
+        }
+
+        card.findViewById<Button>(R.id.btn_settings)?.setOnClickListener {
+            service.startActivity(
+                Intent(service, SettingsActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
         }
 
         try {
@@ -116,8 +131,12 @@ class SelectionActionOverlay(
     }
 
     fun hideResultCard() {
+        previewSource = null
         cardRoot?.visibility = View.GONE
     }
+
+    fun activePreviewSource(): String? =
+        previewSource?.takeIf { cardRoot?.visibility == View.VISIBLE }
 
     fun destroy() {
         hide()

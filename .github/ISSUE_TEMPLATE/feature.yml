@@ -1,0 +1,37 @@
+name: Feature request
+description: Propose a user-facing workflow or output improvement.
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: User problem
+      description: What becomes easier or possible for the user?
+    validations:
+      required: true
+  - type: textarea
+    id: proposed
+    attributes:
+      label: Proposed behavior
+      description: Include the primary flow, fallback behavior, and non-goals.
+    validations:
+      required: true
+  - type: dropdown
+    id: priority_surface
+    attributes:
+      label: Primary surface
+      options:
+        - Accessibility chip
+        - Share target
+        - Settings
+        - Image output
+        - PDF output
+        - Developer workflow
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List observable outcomes an agent can test.
+    validations:
+      required: true

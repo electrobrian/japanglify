@@ -20,6 +20,7 @@ val keystoreProperties = Properties().apply {
 android {
     namespace = "com.japanglify.app"
     compileSdk = 35
+    buildToolsVersion = "35.0.0"
 
     defaultConfig {
         applicationId = "com.japanglify.app"
@@ -68,6 +69,15 @@ android {
     }
 
     signingConfigs {
+        // Keep debug builds independent of the host profile's default
+        // ~/.android/debug.keystore. This makes the wrapper build reliable on
+        // locked-down Windows hosts while leaving release signing unchanged.
+        create("localDebug") {
+            storeFile = file("build/local-debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
         if (keystorePropertiesFile.exists()) {
             create("release") {
                 storeFile = rootProject.file(keystoreProperties.getProperty("storeFile"))
@@ -91,6 +101,7 @@ android {
         }
         debug {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("localDebug")
         }
     }
 
