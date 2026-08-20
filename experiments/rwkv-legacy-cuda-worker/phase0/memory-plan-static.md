@@ -1,10 +1,11 @@
 # Phase 0 Static Memory Plan
 
-**Status: PENDING PHYSICAL PROBE.** This is a planning document only. It does not
-load a checkpoint, allocate device memory, query the target, or execute CUDA.
-The current conservative planning limit is **256 MiB VRAM**. The target is an
-sm_11-class GeForce 8600 GT with 16 GiB system RAM, but the board, driver, and
-display reservation have not been physically reconciled.
+**Status: PHYSICAL INVENTORY RECEIVED; SAFE ALLOCATION PROBE PENDING.** This is
+still a planning document only. It does not load a checkpoint, allocate device
+memory, query the target, or execute CUDA. The inventory reports **256 MiB
+VRAM** for an NVIDIA GeForce 8600 GT, PCI ID `VEN_10DE&DEV_0402`, with driver
+`9.18.13.4192` / `341.92`. Display reservation and usable VRAM have not been
+measured.
 
 ## Inputs and assumptions
 
@@ -13,6 +14,10 @@ display reservation have not been physically reconciled.
 - Model width: `d_model = 768`.
 - Vocabulary: `65,536` tokens.
 - Candidate parameter count used for raw storage arithmetic: `169,000,000`.
+- Physical host inventory: Windows 10 Home build 19045, AMD Athlon II X2 B24
+  at 3.0 GHz, 16 GiB installed RAM, 44.14 GiB free on `C:`.
+- CUDA toolkit: `nvcc.exe` not found on PATH; `nvidia-smi.exe` not found on
+  PATH. This does not prove that no locally installed legacy runtime exists.
 - Arithmetic precision: FP32 accumulation and FP32 recurrent state.
 - Batch size: **PENDING — requires Brian approval**.
 - Exact checkpoint tensor list, tied/untied output projection, quantization
@@ -60,9 +65,9 @@ working allowance is approximately **0.35 MiB**, before allocator alignment.
 | Current-layer activations | 1-8 MiB | Estimate for batch-one FP32 vectors and intermediates; exact graph pending |
 | Normalization/reduction scratch | 1-8 MiB | Estimate; kernel implementation pending |
 | Logits/output buffer | 0.25-1 MiB | `65,536 * 4 = 262,144 bytes = 0.25 MiB` for one FP32 logits vector; extra buffers pending |
-| Runtime/driver overhead | 16-48 MiB | Planning estimate only; driver/toolkit allocation behavior is **PENDING PHYSICAL PROBE** |
+| Runtime/driver overhead | 16-48 MiB | Planning estimate only; driver/toolkit allocation behavior is **PENDING PHYSICAL PROBE**; installed driver is 341.92 |
 | Alignment/fragmentation | 4-16 MiB | Planning allowance; measured allocator behavior is **PENDING PHYSICAL PROBE** |
-| Display reservation | **PENDING PHYSICAL PROBE** | Must be measured or conservatively budgeted without destabilizing the desktop |
+| Display reservation | **PENDING PHYSICAL PROBE** | WMI reports 256 MiB total adapter RAM, but active desktop reservation is not exposed by this inventory |
 | Safety reserve | 32 MiB minimum planning reserve | Configurable reserve per section 11.1; Brian must approve the final value |
 
 The runtime/driver, display, and safety categories cannot be established from
@@ -79,7 +84,9 @@ architecture alone. Do not treat the estimates above as available VRAM.
 - **Q5:** fully resident is plausible only if the physical display reservation
   and loaded-format overhead are low. Mostly resident is the more conservative
   planning assumption pending measurement.
-- **Q4:** fully resident is the leading hypothesis, but is not yet established.
+- **Q4:** fully resident is the leading hypothesis, but is not yet established;
+  the old driver and absent PATH-visible toolkit make toolchain validation an
+  additional blocker.
   Mostly resident or layer-streamed modes remain fallback research comparisons,
   not an automatic downgrade.
 
@@ -89,8 +96,10 @@ as required by section 11.3.
 
 ## PENDING PHYSICAL PROBE
 
-The following require the target Windows machine: reconciled VRAM from multiple
-sources, active display reservation, driver/runtime allocations, safe usable
-VRAM, actual converted tensor footprint, and any allocation fragmentation.
-Throughput, time to first token, and layer-transfer cost also require physical
-measurement and are not inferred here.
+The following still require the target Windows machine: reconciled VRAM from
+multiple sources, active display reservation, legacy CUDA runtime/toolkit
+compatibility, driver/runtime allocations, safe usable VRAM, actual converted
+tensor footprint, and any allocation fragmentation. Throughput, time to first
+token, and layer-transfer cost also require physical measurement and are not
+inferred here. Do not install or change any driver/toolkit as part of this
+read-only gate.

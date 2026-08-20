@@ -16,9 +16,9 @@ This draft covers every field required by section 5.3 of
 | Source and destination weight formats | Source checkpoint format `[PENDING — requires Brian approval]`; destination `.rwkvq` format `[PENDING — requires Brian approval]` |
 | Quantization scheme, block size, scale representation, and tensors excluded from quantization | `[PENDING — requires Brian approval]` |
 | Runtime source revision and applied patches | `[PENDING — requires Brian approval]` |
-| Compiler, CUDA toolkit, driver, and target architecture | Compiler `[PENDING — requires physical inventory run]`; CUDA toolkit `[PENDING — requires physical inventory run]`; driver `[PENDING — requires physical inventory run]`; target architecture `sm_11` candidate, physical compatibility `[PENDING — requires physical inventory run]` |
-| GPU PCI identity and usable VRAM estimate | `[PENDING — requires physical inventory run]` |
-| Weight, state, activation, workspace, display, and safety memory budgets | Weight/state/activation/workspace `[PENDING — requires exact checkpoint and format]`; display and usable VRAM `[PENDING — requires physical inventory run]`; safety reserve `[PENDING — requires Brian approval]` |
+| Compiler, CUDA toolkit, driver, and target architecture | Compiler `[PENDING — requires physical inventory run]`; CUDA toolkit `nvcc.exe not found on PATH; legacy runtime presence [PENDING — requires physical follow-up]`; driver `NVIDIA 341.92 (WMI 9.18.13.4192)`; target architecture `sm_11` candidate, physical compatibility `[PENDING — requires physical inventory run]` |
+| GPU PCI identity and usable VRAM estimate | PCI `VEN_10DE&DEV_0402&SUBSYS_050510DE&REV_A1`; WMI AdapterRAM `268,435,456 bytes (256 MiB)`; usable VRAM `[PENDING — requires physical safe allocation probe]` |
+| Weight, state, activation, workspace, display, and safety memory budgets | Weight/state/activation/workspace `[PENDING — requires exact checkpoint and format]`; display reservation `[PENDING — requires physical safe allocation probe]`; usable VRAM `[PENDING — requires physical safe allocation probe]`; safety reserve `[PENDING — requires Brian approval]` |
 | Accumulator, state, activation, and output-logit precision | Candidate FP32 for all four; final values `[PENDING — requires Brian approval]` |
 | Maximum prompt chunk, recurrent-state policy, batch size, and output limit | `[PENDING — requires Brian approval]` |
 | Expected CPU and GPU operator placement | GPU-major-required placement `[PENDING — requires Brian approval and operator plan]`; CPU orchestration/tokenization/sampling `[PENDING — requires Brian approval]` |
@@ -28,10 +28,20 @@ This draft covers every field required by section 5.3 of
 | Model reasoning/effort controls, if any | `[PENDING — requires Brian approval]` |
 | Manifest identifier derived from canonical manifest contents | **NOT POPULATED — `[PENDING — requires all fields confirmed]`** |
 
+## Physical inventory received
+
+- Host: `DESKTOP-AD3VN8D`, Windows 10 Home `10.0.19045`, PowerShell 5.1.
+- CPU: AMD Athlon(tm) II X2 B24, 2 cores / 2 logical processors, 3000 MHz.
+- RAM: four 4 GiB modules reported, 16 GiB total. One additional 1 MiB WMI
+  entry is treated as an inventory artifact, not usable system RAM.
+- `nvidia-smi.exe` was not found on PATH. TPM fields were unavailable in this
+  run and remain unresolved.
+
 ## Gate notes
 
-- Physical inventory must fill in OS/toolchain, PCI identity, driver, and VRAM
-  evidence without changing the host.
+- Physical inventory has filled in OS, PCI identity, reported VRAM, driver, CPU,
+  and RAM evidence without changing the host. A safe allocation probe is still
+  required for display reservation and usable VRAM.
 - License review must complete before a checkpoint or tokenizer is downloaded
   or redistributed.
 - Brian must approve the exact checkpoint, quantization format, memory plan,
