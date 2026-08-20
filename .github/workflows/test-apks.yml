@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   pull_request:
     branches: [BETA-2, BETA-3]
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'app/**'
       - 'domain/**'
@@ -13,24 +14,42 @@ on:
       - 'gradle/**'
       - '.github/workflows/test-apks.yml'
 
+# A new commit makes an older build for the same PR obsolete.
+concurrency:
+  group: tester-apks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Keep the repository default read-only. The build job is allowed to publish
+# tester prereleases and link them from the originating PR.
 permissions:
   contents: read
 
 jobs:
   build:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.draft == false &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+    permissions:
+      contents: write
+      pull-requests: write
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # Do not leave the write-capable GITHUB_TOKEN in Git credentials
+          # while Gradle executes repository code.
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
         with:
           distribution: temurin
           java-version: '22'
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
         with:
-          # BETA-2 is an integration branch rather than the repository default
-          # branch. Let successful tester-ready PRs refresh reusable Gradle
-          # dependencies, transforms, compiled scripts, and local build-cache
-          # entries for the next PR.
+          # Agent PRs are same-repository trusted branches. Let successful
+          # tester builds refresh dependencies, transforms, compiled scripts,
+          # and local build-cache entries for the next PR.
           cache-read-only: false
       - name: Create ephemeral tester signing key
         run: |
@@ -42,14 +61,79 @@ jobs:
           keyAlias=androiddebugkey
           keyPassword=android
           EOF
-      - name: Build tester APKs
-        run: ./gradlew --build-cache :app:assembleDownloadableDebug :app:assembleBundledDebug :app:assembleDownloadableRelease
-      - name: Upload test APKs
-        uses: actions/upload-artifact@v4
-        with:
-          name: japanglify-test-apks-${{ github.run_number }}
-          if-no-files-found: error
-          path: |
-            app/build/outputs/apk/downloadable/debug/*.apk
-            app/build/outputs/apk/bundled/debug/*.apk
-            app/build/outputs/apk/downloadable/release/*.apk
+      - name: Test domain and build tester APKs
+        run: ./gradlew --build-cache :domain:test :app:assembleDownloadableDebug :app:assembleBundledDebug :app:assembleDownloadableRelease
+      - name: Prepare and verify raw APK assets
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/downloadable/debug/*.apk dist/japanglify-downloadable-debug.apk
+          cp app/build/outputs/apk/bundled/debug/*.apk dist/japanglify-bundled-debug.apk
+          cp app/build/outputs/apk/downloadable/release/*.apk dist/japanglify-downloadable-release.apk
+
+          test "$(find dist -maxdepth 1 -type f -name '*.apk' | wc -l)" -eq 3
+          apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$apksigner"
+          for apk in dist/*.apk; do
+            "$apksigner" verify --verbose "$apk"
+          done
+          sha256sum dist/*.apk
+      - name: Publish individual tester APKs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_NUMBER: ${{ github.run_number }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            tag="pr-${PR_NUMBER}-build-${RUN_NUMBER}"
+            title="PR #${PR_NUMBER} tester APKs (build ${RUN_NUMBER})"
+            target="$HEAD_SHA"
+            source="PR #${PR_NUMBER}"
+          else
+            tag="manual-build-${RUN_NUMBER}"
+            title="Manual tester APKs (build ${RUN_NUMBER})"
+            target="$GITHUB_SHA"
+            source="manual workflow dispatch"
+          fi
+
+          release_url="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${tag}"
+          notes="Tester binaries for ${source}.
+
+          Workflow: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}
+          Commit: ${target}
+
+          The downloadable release APK is minified but uses an ephemeral CI signing key. Treat all three APKs as fresh-install tester builds, not production releases."
+
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" dist/*.apk --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --title "$title" --notes "$notes" --prerelease
+          else
+            gh release create "$tag" dist/*.apk \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$target" \
+              --title "$title" \
+              --notes "$notes" \
+              --prerelease
+          fi
+
+          {
+            echo "## Individual tester APKs"
+            echo
+            echo "- [Downloadable release](https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/japanglify-downloadable-release.apk)"
+            echo "- [Downloadable debug](https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/japanglify-downloadable-debug.apk)"
+            echo "- [Bundled debug](https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/japanglify-bundled-debug.apk)"
+            echo
+            echo "Release page: ${release_url}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --body "Tester APKs for commit \`${target}\`:
+
+          - [Downloadable release](https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/japanglify-downloadable-release.apk)
+          - [Downloadable debug](https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/japanglify-downloadable-debug.apk)
+          - [Bundled debug](https://github.com/${GITHUB_REPOSITORY}/releases/download/${tag}/japanglify-bundled-debug.apk)
+
+          These are fresh-install tester builds. [Build details](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID})."
+          fi
