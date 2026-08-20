@@ -32,12 +32,18 @@ jobs:
           # dependencies, transforms, compiled scripts, and local build-cache
           # entries for the next PR.
           cache-read-only: false
-      - name: Create ephemeral debug keystore
+      - name: Create ephemeral tester signing key
         run: |
           mkdir -p app/build
           keytool -genkeypair -keystore app/build/local-debug.keystore -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=Android Debug,O=Android,C=US'
-      - name: Build both test APKs
-        run: ./gradlew --build-cache :app:assembleDownloadableDebug :app:assembleBundledDebug
+          cat > keystore.properties <<'EOF'
+          storeFile=app/build/local-debug.keystore
+          storePassword=android
+          keyAlias=androiddebugkey
+          keyPassword=android
+          EOF
+      - name: Build tester APKs
+        run: ./gradlew --build-cache :app:assembleDownloadableDebug :app:assembleBundledDebug :app:assembleDownloadableRelease
       - name: Upload test APKs
         uses: actions/upload-artifact@v4
         with:
@@ -46,3 +52,4 @@ jobs:
           path: |
             app/build/outputs/apk/downloadable/debug/*.apk
             app/build/outputs/apk/bundled/debug/*.apk
+            app/build/outputs/apk/downloadable/release/*.apk
