@@ -97,3 +97,9 @@ validation result, architectural decision, or follow-up risk.
 - No names dictionary, dependency, download, licensing change, or APK-size
   cost was introduced. Spellings that Kuromoji does not classify as proper
   nouns remain unchanged for UAT rather than being guessed from a name list.
+- Regression coverage verifies that provider-confirmed names suppress only
+  semantic annotation while ordinary nouns retain their gloss and emoji.
+- Local `:domain:test` did not emit a result on this host, including after an
+  isolated Android user-home attempt. GitHub PR #12's `Build test APKs` run
+  completed successfully and is the recorded validation result for this
+  trial; follow-up UAT should use the PR's tester build when available.
