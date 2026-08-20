@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "catalogVersion": "2026-08-20",
+  "candidates": [
+    {
+      "id": "codeparrot-small-q4",
+      "name": "CodeParrot-small, Q4 candidate",
+      "role": "bounded code completion and patch suggestions",
+      "architecture": "GPT-2 style transformer",
+      "parametersMillion": 110,
+      "quantizationBits": 4,
+      "runtimeMultiplier": 2.0,
+      "preferredVendor": "nvidia",
+      "legacyCudaClassification": "adaptable-research",
+      "nextStep": "Verify exact VRAM, CUDA driver/toolkit availability, and a GPU-major GPT-2 operator plan before any download.",
+      "evidence": ["Catalog baseline only; no local runtime benchmark has been run."]
+    },
+    {
+      "id": "rwkv-4-world-169m-q4",
+      "name": "RWKV-4 World 169M, Q4 candidate",
+      "role": "stateful CI diagnosis and structured planning experiments",
+      "architecture": "RWKV-4 recurrent language model",
+      "parametersMillion": 169,
+      "quantizationBits": 4,
+      "runtimeMultiplier": 1.75,
+      "preferredVendor": "nvidia",
+      "legacyCudaClassification": "adaptable-research",
+      "nextStep": "Verify exact VRAM and produce a legacy CUDA 6.5 sm_11 operator and numerical-validation plan before any download.",
+      "evidence": ["Constant recurrent state is architecturally distinct from a transformer KV cache; model quality and runtime compatibility remain unvalidated."]
+    },
+    {
+      "id": "radeon-hd4200-numeric-worker",
+      "name": "Radeon HD 4200 bounded numeric worker",
+      "role": "FFT, signal processing, hashing, and image-processing microbenchmarks",
+      "architecture": "legacy GPU compute workload",
+      "parametersMillion": 0,
+      "quantizationBits": 32,
+      "runtimeMultiplier": 1.0,
+      "preferredVendor": "amd",
+      "legacyCudaClassification": "unknown",
+      "nextStep": "Verify enabled integrated video, shared-memory reservation, and legacy AMD compute runtime before assigning an accelerator workload.",
+      "evidence": ["Not a model candidate; included to make the integrated GPU visible to scheduling decisions."]
+    }
+  ]
+}
+
