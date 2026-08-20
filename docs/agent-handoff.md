@@ -68,3 +68,12 @@ validation result, architectural decision, or follow-up risk.
   `app/build/local-debug.keystore` is intentionally uncommitted. The APK
   workflow now generates this standard, ephemeral Android debug keystore on the
   hosted runner before assembly; no release key or secret is introduced.
+
+## 2026-08-20 — Confirmed GitHub APK workflow
+
+- The repaired `BETA-2` workflow completed successfully: it built both
+  downloadable and bundled debug APKs, then uploaded artifact
+  `japanglify-test-apks-13` (GitHub Actions retention through 2026-11-18).
+- The workflow creates `app/build` and an ephemeral standard debug keystore
+  before Gradle assembly. This is the established CI recipe; it never accesses
+  a release keystore.
