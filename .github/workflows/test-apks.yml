@@ -3,8 +3,18 @@ name: Build test APKs
 on:
   push:
     branches: [BETA-2, BETA-3, 'agent/**']
+    paths-ignore:
+      - '**/*.md'
+      - 'AGENTS.md'
+      - 'DEVELOPMENT.md'
+      - '.github/ISSUE_TEMPLATE/**'
   pull_request:
     branches: [BETA-2, BETA-3]
+    paths-ignore:
+      - '**/*.md'
+      - 'AGENTS.md'
+      - 'DEVELOPMENT.md'
+      - '.github/ISSUE_TEMPLATE/**'
 
 permissions:
   contents: read
