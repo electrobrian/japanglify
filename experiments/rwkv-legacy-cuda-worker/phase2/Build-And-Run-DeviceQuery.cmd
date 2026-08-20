@@ -8,17 +8,19 @@ set "SOURCE=%ROOT%device-probe.cu"
 set "EXE=%ROOT%deviceQuery.exe"
 set "REPORT=%ROOT%device-query-report.txt"
 
+set "SELF=%~f0"
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$self=$env:SELF; $out=$env:SOURCE; $begin='### BEGIN CUDA '+'SOURCE ###'; $finish='### END CUDA '+'SOURCE ###'; $lines=[System.IO.File]::ReadAllLines($self); $start=[Array]::IndexOf($lines,$begin); $end=[Array]::IndexOf($lines,$finish); if($start -lt 0 -or $end -le $start){throw 'Embedded CUDA source markers were not found.'}; $source=$lines[($start+1)..($end-1)] -join [Environment]::NewLine; [System.IO.File]::WriteAllText($out,$source,(New-Object System.Text.UTF8Encoding($false)))"
+if errorlevel 1 (
+    echo Could not extract the embedded CUDA source.
+    pause
+    exit /b 3
+)
+
 if not exist "%NVCC%" (
     echo CUDA 6.5 nvcc.exe was not found.
     echo Expected: "%NVCC%"
     pause
     exit /b 2
-)
-
-if not exist "%SOURCE%" (
-    echo Missing source: "%SOURCE%"
-    pause
-    exit /b 3
 )
 
 echo Building deviceQuery.exe for sm_11 with CUDA 6.5...
@@ -45,3 +47,61 @@ if not "%RC%"=="0" (
 echo Report: "%REPORT%"
 pause
 exit /b %RC%
+
+### BEGIN CUDA SOURCE ###
+#include <cuda_runtime.h>
+#include <stdio.h>
+
+static void print_cuda_error(const char* operation, cudaError_t error) {
+    fprintf(stderr, "%s failed: %s (%d)\n", operation, cudaGetErrorString(error), (int)error);
+}
+
+int main(void) {
+    int device_count = 0;
+    cudaError_t error = cudaGetDeviceCount(&device_count);
+    if (error != cudaSuccess) {
+        print_cuda_error("cudaGetDeviceCount", error);
+        return 2;
+    }
+
+    printf("CUDA device count: %d\n", device_count);
+    if (device_count <= 0) {
+        printf("No CUDA device reported.\n");
+        return 3;
+    }
+
+    for (int index = 0; index < device_count; ++index) {
+        cudaDeviceProp properties;
+        error = cudaGetDeviceProperties(&properties, index);
+        if (error != cudaSuccess) {
+            print_cuda_error("cudaGetDeviceProperties", error);
+            return 4;
+        }
+
+        size_t free_bytes = 0;
+        size_t total_bytes = 0;
+        error = cudaSetDevice(index);
+        if (error != cudaSuccess) {
+            print_cuda_error("cudaSetDevice", error);
+            return 5;
+        }
+        error = cudaMemGetInfo(&free_bytes, &total_bytes);
+        if (error != cudaSuccess) {
+            print_cuda_error("cudaMemGetInfo", error);
+            return 6;
+        }
+
+        printf("Device %d name: %s\n", index, properties.name);
+        printf("Device %d compute capability: %d.%d\n", index, properties.major, properties.minor);
+        printf("Device %d totalGlobalMemBytes: %llu\n", index, (unsigned long long)properties.totalGlobalMem);
+        printf("Device %d freeMemBytes: %llu\n", index, (unsigned long long)free_bytes);
+        printf("Device %d memInfoTotalBytes: %llu\n", index, (unsigned long long)total_bytes);
+        printf("Device %d multiProcessorCount: %d\n", index, properties.multiProcessorCount);
+        printf("Device %d clockRateKHz: %d\n", index, properties.clockRate);
+        printf("Device %d integrated: %d\n", index, properties.integrated);
+    }
+
+    printf("Probe completed. No deliberate device allocation was performed.\n");
+    return 0;
+}
+### END CUDA SOURCE ###
