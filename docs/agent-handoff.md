@@ -121,3 +121,6 @@ validation result, architectural decision, or follow-up risk.
   `-LogPath` overrides the destination and `-NoLog` disables persistence.
   Console styling and interactive controls never enter the log, making it a
   stable source for a future replay/viewer.
+- Arrow handling accepts both native `ConsoleKeyInfo` arrow keys and ANSI
+  escape sequences from pseudo-terminals. Input is drained before and after a
+  refresh so network/counter work does not swallow navigation keystrokes.

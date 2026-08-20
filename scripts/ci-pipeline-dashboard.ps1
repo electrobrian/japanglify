@@ -159,26 +159,54 @@ function Read-DashboardKeys {
         [ref] $RightOffset,
         [ref] $QuitRequested
     )
+    function Read-KeyWithin {
+        param([int] $Milliseconds)
+        $deadline = [DateTimeOffset]::Now.AddMilliseconds($Milliseconds)
+        do {
+            if ([Console]::KeyAvailable) { return [Console]::ReadKey($true) }
+            Start-Sleep -Milliseconds 10
+        } while ([DateTimeOffset]::Now -lt $deadline)
+        return $null
+    }
     $changed = $false
     try {
         while ([Console]::KeyAvailable) {
             $key = [Console]::ReadKey($true)
-            switch ($key.Key) {
-                ([ConsoleKey]::Q) { $QuitRequested.Value = $true; $changed = $true }
-                ([ConsoleKey]::Spacebar) { $Paused.Value = -not $Paused.Value; $changed = $true }
-                ([ConsoleKey]::LeftArrow) { $Focus.Value = 'WORKFLOW'; $changed = $true }
-                ([ConsoleKey]::RightArrow) { $Focus.Value = 'HOST'; $changed = $true }
-                ([ConsoleKey]::UpArrow) {
+            $keyName = [string]$key.Key
+            if ($key.Key -eq [ConsoleKey]::Escape) {
+                # Windows Terminal and pseudo-terminals may deliver arrows as
+                # ESC [ A/B/C/D rather than ConsoleKey.DownArrow, etc.
+                $prefix = Read-KeyWithin -Milliseconds 150
+                if ($null -ne $prefix) {
+                    if ($prefix.KeyChar -eq '[' -or $prefix.KeyChar -eq 'O') {
+                        $suffix = Read-KeyWithin -Milliseconds 150
+                        if ($null -ne $suffix) { $keyName = switch ($suffix.KeyChar) {
+                            'A' { 'UpArrow' }
+                            'B' { 'DownArrow' }
+                            'C' { 'RightArrow' }
+                            'D' { 'LeftArrow' }
+                            'H' { 'Home' }
+                            default { 'Escape' }
+                        } }
+                    }
+                }
+            }
+            switch ($keyName.ToUpperInvariant()) {
+                'Q' { $QuitRequested.Value = $true; $changed = $true }
+                'SPACEBAR' { $Paused.Value = -not $Paused.Value; $changed = $true }
+                'LEFTARROW' { $Focus.Value = 'WORKFLOW'; $changed = $true }
+                'RIGHTARROW' { $Focus.Value = 'HOST'; $changed = $true }
+                'UPARROW' {
                     if ($Focus.Value -eq 'WORKFLOW') { $LeftOffset.Value = [Math]::Max(0, $LeftOffset.Value - 1) }
                     else { $RightOffset.Value = [Math]::Max(0, $RightOffset.Value - 1) }
                     $changed = $true
                 }
-                ([ConsoleKey]::DownArrow) {
+                'DOWNARROW' {
                     if ($Focus.Value -eq 'WORKFLOW') { $LeftOffset.Value++ }
                     else { $RightOffset.Value++ }
                     $changed = $true
                 }
-                ([ConsoleKey]::Home) {
+                'HOME' {
                     if ($Focus.Value -eq 'WORKFLOW') { $LeftOffset.Value = 0 }
                     else { $RightOffset.Value = 0 }
                     $changed = $true
@@ -812,7 +840,9 @@ function Write-Dashboard {
     $rightWidth = [Math]::Max(28, [int][Math]::Floor($Width / 3))
     $leftWidth = $Width - $rightWidth - $gap
     $pauseLabel = if ($Paused) { 'PAUSED' } else { 'LIVE' }
-    $bannerLabel = " JAPANGLIFY  /  CI CONTROL ROOM  /  $Focus  /  $pauseLabel  /  arrows navigate | space pause | q quit "
+    $offsetLabel = if ($Focus -eq 'WORKFLOW') { "WORKFLOW+$LeftOffset" } else { "HOST+$RightOffset" }
+    $hint = if ($Width -ge 140) { 'arrows navigate | space pause | q quit' } elseif ($Width -ge 110) { 'arrows | space | q' } else { 'keys: arrows/space/q' }
+    $bannerLabel = " JAPANGLIFY  /  CI CONTROL ROOM  /  $offsetLabel  /  $pauseLabel  /  $hint "
     $bannerFill = [Math]::Max(4, $Width - $bannerLabel.Length - 4)
     $banner = '+==' + $bannerLabel + ('=' * $bannerFill) + '==+'
     $separator = '+' + ('-' * [Math]::Max(8, $Width - 2)) + '+'
@@ -883,6 +913,14 @@ do {
             }
         }
         $haveData = $true
+    }
+
+    # A GitHub/API refresh can take longer than a keypress interval. Drain
+    # buffered input again before painting so navigation is not lost while the
+    # dashboard is doing network or performance-counter work.
+    if ($interactive) {
+        Read-DashboardKeys -Focus ([ref]$focus) -Paused ([ref]$paused) -LeftOffset ([ref]$leftOffset) -RightOffset ([ref]$rightOffset) -QuitRequested ([ref]$quitRequested) | Out-Null
+        if ($quitRequested) { break }
     }
 
     $width = Get-TerminalWidth
