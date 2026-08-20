@@ -219,5 +219,8 @@
     <string name="notif_field_replace_failed">Could not replace the field — try Copy text instead</string>
     <string name="overlay_action_translate">Translate</string>
     <string name="overlay_action_copy">Copy</string>
+    <string name="overlay_action_copy_as_image">Copy as image</string>
+    <string name="overlay_action_settings">Settings</string>
+    <string name="overlay_preview_status">Live preview — updates after you change settings</string>
     <string name="overlay_action_close">Close</string>
 </resources>
