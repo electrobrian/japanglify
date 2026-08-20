@@ -126,3 +126,11 @@ validation result, architectural decision, or follow-up risk.
   refresh so network/counter work does not swallow navigation keystrokes.
 - Defaults now follow familiar `top` ergonomics: 3-second refresh, host-health
   focus, CPU-sorted busiest processes, and a task count in the host summary.
+
+## 2026-08-20 — GitHub-backed approval surface
+
+- The dashboard now includes an `Approvals` collection in Console/JSON output.
+  It observes canonical issue comments from `electrobrian` using the exact
+  `/codex-approval-request` and `/codex-approval approve <digest>` forms.
+- This is an audit/visibility surface, not an authority bypass: Codex still
+  requires the in-task worker/model approval gate before assigning work.

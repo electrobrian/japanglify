@@ -31,6 +31,7 @@ Emits one compact JSON object per line for a future Node/SSE/WebSocket bridge.
 [CmdletBinding()]
 param(
     [string[]] $Repository = @('electrobrian/japanglify'),
+    [string[]] $ApprovalRepository = @('electrobrian/japanglify'),
     [ValidateRange(1, 300)]
     [int] $IntervalSeconds = 3,
     [ValidateRange(5, 3600)]
@@ -74,6 +75,34 @@ function Invoke-GhJson {
     return @($text | ConvertFrom-Json)
 }
 
+function Get-GitHubApprovalSurface {
+    param([string[]] $Repositories)
+    $items = @()
+    foreach ($repo in $Repositories) {
+        try {
+            $issues = Invoke-GhJson @('issue', 'list', '--repo', $repo, '--state', 'open', '--limit', '100', '--json', 'number,title,url,author')
+            foreach ($issue in @($issues)) {
+                $fullIssue = Invoke-GhJson @('issue', 'view', [string]$issue.number, '--repo', $repo, '--comments', '--json', 'comments')
+                foreach ($comment in @($fullIssue.comments)) {
+                    if ($comment.author.login -ne 'electrobrian') { continue }
+                    $body = ([string]$comment.body).Trim()
+                    if ($body -notmatch '(?im)^/codex-approval-request\s*$') { continue }
+                    $approved = @($fullIssue.comments | Where-Object {
+                        $_.author.login -eq 'electrobrian' -and ([string]$_.body).Trim() -match '(?im)^/codex-approval\s+approve\s+(.+)$'
+                    } | Select-Object -Last 1)
+                    $items += [pscustomobject]@{
+                        Repository = $repo; Issue = $issue.number; Title = $issue.title; Url = $issue.url
+                        State = if ($approved.Count -gt 0) { 'OBSERVED_APPROVED' } else { 'APPROVAL_REQUIRED' }
+                        RequestedAt = $comment.createdAt; ApprovalComment = if ($approved.Count) { $approved[0].url } else { $null }
+                        CodexAuthority = 'REQUIRED'
+                    }
+                }
+            }
+        } catch { }
+    }
+    return @($items | Sort-Object Repository, Issue -Unique)
+}
+
 function Write-SnapshotLog {
     param([Parameter(Mandatory)] $Snapshot)
     if (-not $script:LogEnabled) { return }
@@ -95,10 +124,10 @@ function Get-TerminalWidth {
 }
 
 function Limit-Text {
-    param([AllowNull()][string] $Text, [int] $Width)
+    param([AllowNull()][string] $Text, [int] $Width, [switch] $PreserveWhitespace)
     if ($Width -le 0) { return '' }
     if ($null -eq $Text) { $Text = '' }
-    $Text = $Text -replace '\s+', ' '
+    if (-not $PreserveWhitespace) { $Text = $Text -replace '\s+', ' ' }
     if ($Text.Length -le $Width) { return $Text }
     if ($Width -le 3) { return $Text.Substring(0, $Width) }
     return $Text.Substring(0, $Width - 3) + '...'
@@ -106,7 +135,7 @@ function Limit-Text {
 
 function Pad-Line {
     param([AllowNull()][string] $Text, [int] $Width)
-    $value = Limit-Text $Text $Width
+    $value = Limit-Text $Text $Width -PreserveWhitespace
     return $value.PadRight($Width)
 }
 
@@ -123,28 +152,55 @@ function New-PanelRule {
     return ('  ' + ('-' * [Math]::Max(8, $Width - 4)))
 }
 
+function New-FramedPanel {
+    <#
+    Turns a list of plain dashboard lines into a stable, old-school terminal
+    frame.  Color is applied only after layout, so escape sequences never
+    affect measurement or alignment.
+    #>
+    param(
+        [Parameter(Mandatory)][string] $Title,
+        [Parameter(Mandatory)][AllowEmptyString()][string[]] $Lines,
+        [Parameter(Mandatory)][int] $InnerWidth,
+        [int] $MinimumHeight = 0
+    )
+    $inner = [Math]::Max(12, $InnerWidth)
+    $label = " $Title "
+    if ($label.Length -gt $inner) { $label = ' ' + (Limit-Text $Title ([Math]::Max(3, $inner - 2))) + ' ' }
+    $top = '+-' + $label + ('-' * [Math]::Max(0, $inner - $label.Length)) + '-+'
+    $body = @($Lines)
+    while ($body.Count -lt $MinimumHeight) { $body += '' }
+    $rendered = @($top)
+    foreach ($line in $body) { $rendered += '| ' + (Pad-Line $line $inner) + ' |' }
+    $rendered += '+' + ('-' * ($inner + 2)) + '+'
+    return @($rendered)
+}
+
 function Color-Line {
     param([AllowNull()][string] $Text)
     if (-not $script:UseColor -or [string]::IsNullOrEmpty($Text)) { return $Text }
     $reset = "$($script:Escape)[0m"
+    # Framed panels prefix every row with `| `. Classify the visible payload,
+    # not the border, so headings and status lines retain their colors.
+    $probe = $Text -replace '^\s*[|+\-=<>]+\s*', ''
     $code = $null
-    if ($Text -match '(?i)^\s*GITHUB ERROR|\[FAIL|failed|error|throttled') {
+    if ($probe -match '(?i)^\s*GITHUB ERROR|\[FAIL|failed|error|throttled') {
         $code = '31;1'
-    } elseif ($Text -match '^\s*(CI PIPELINE|SYSTEM|CODEX WORKERS|CODEX TASK TAIL|BUSIEST PROCESSES)') {
+    } elseif ($probe -match '^\s*(CI PIPELINE|CI / WORKFLOW|HOST / SYSTEM HEALTH|SYSTEM|CODEX WORKERS|CODEX TASK TAIL|BUSIEST PROCESSES|GITHUB APPROVAL SURFACE)') {
         $code = '36;1'
-    } elseif ($Text -match '(?i)\[PASS|SUCCESS|unrestricted|Online|pressure OK') {
+    } elseif ($probe -match '(?i)\[PASS|SUCCESS|unrestricted|Online|pressure OK') {
         $code = '32'
-    } elseif ($Text -match '(?i)\[WAIT|RUN |DRAFT|not published|No open pull requests|power-saving|approval pending|pressure WARN') {
+    } elseif ($probe -match '(?i)\[WAIT|RUN |DRAFT|not published|No open pull requests|power-saving|approval pending|pressure WARN') {
         $code = '33'
-    } elseif ($Text -match '(?i)pressure HIGH') {
+    } elseif ($probe -match '(?i)pressure HIGH') {
         $code = '31;1'
-    } elseif ($Text -match '^\s*(CPU|all|core\s)') {
+    } elseif ($probe -match '^\s*(CPU|all|core\s)') {
         $code = '36'
-    } elseif ($Text -match '^\s*(RAM|Commit|Paging|MEMORY|POWER)') {
+    } elseif ($probe -match '^\s*(RAM|Commit|Paging|MEMORY|POWER)') {
         $code = '35'
-    } elseif ($Text -match '^\s*\+') {
+    } elseif ($probe -match '^\s*\+') {
         $code = '34'
-    } elseif ($Text -match '^\s*\d\d:\d\d:\d\d') {
+    } elseif ($probe -match '^\s*\d\d:\d\d:\d\d') {
         $code = '90'
     }
     if ($null -eq $code) { return $Text }
@@ -157,7 +213,8 @@ function Read-DashboardKeys {
         [ref] $Paused,
         [ref] $LeftOffset,
         [ref] $RightOffset,
-        [ref] $QuitRequested
+        [ref] $QuitRequested,
+        [ref] $HelpRequested
     )
     function Read-KeyWithin {
         param([int] $Milliseconds)
@@ -191,8 +248,11 @@ function Read-DashboardKeys {
                     }
                 }
             }
+            if ($key.KeyChar -eq '?') { $HelpRequested.Value = -not $HelpRequested.Value; $changed = $true; continue }
             switch ($keyName.ToUpperInvariant()) {
                 'Q' { $QuitRequested.Value = $true; $changed = $true }
+                'H' { $HelpRequested.Value = -not $HelpRequested.Value; $changed = $true }
+                'OEM2' { $HelpRequested.Value = -not $HelpRequested.Value; $changed = $true }
                 'SPACEBAR' { $Paused.Value = -not $Paused.Value; $changed = $true }
                 'LEFTARROW' { $Focus.Value = 'WORKFLOW'; $changed = $true }
                 'RIGHTARROW' { $Focus.Value = 'HOST'; $changed = $true }
@@ -224,13 +284,29 @@ function Wait-DashboardInput {
         [ref] $Paused,
         [ref] $LeftOffset,
         [ref] $RightOffset,
-        [ref] $QuitRequested
+        [ref] $QuitRequested,
+        [ref] $HelpRequested,
+        [ref] $InputRequested,
+        [ref] $ResizeRequested,
+        [ref] $LastObservedWidth
     )
+    $LastObservedWidth.Value = Get-TerminalWidth
     $deadline = [DateTimeOffset]::Now.AddSeconds([Math]::Max(0, $Seconds))
     do {
-        $changed = Read-DashboardKeys -Focus $Focus -Paused $Paused -LeftOffset $LeftOffset -RightOffset $RightOffset -QuitRequested $QuitRequested
-        if ($changed -or $QuitRequested.Value) { return $true }
-        Start-Sleep -Milliseconds 100
+        $changed = Read-DashboardKeys -Focus $Focus -Paused $Paused -LeftOffset $LeftOffset -RightOffset $RightOffset -QuitRequested $QuitRequested -HelpRequested $HelpRequested
+        if ($changed -or $QuitRequested.Value) {
+            $InputRequested.Value = $true
+            return $true
+        }
+        $currentWidth = Get-TerminalWidth
+        if ($currentWidth -ne $LastObservedWidth.Value) {
+            $LastObservedWidth.Value = $currentWidth
+            $ResizeRequested.Value = $true
+            return $true
+        }
+        # Keep interactive navigation feeling immediate even when the normal
+        # data refresh interval is several seconds.
+        Start-Sleep -Milliseconds 25
     } while ([DateTimeOffset]::Now -lt $deadline)
     return $false
 }
@@ -642,7 +718,6 @@ function Get-SystemSnapshot {
 function Get-SystemPanel {
     param($Snapshot, [int] $Width)
     $lines = @(
-        (New-PanelHeader -Title 'SYSTEM HEALTH' -Width $Width),
         "  $($Snapshot.Host) | host up $(Format-DurationSeconds $Snapshot.SystemUptimeSeconds) | tasks $($Snapshot.ProcessCount)",
         "  dashboard up $(Format-DurationSeconds $Snapshot.DashboardUptimeSeconds) | $([DateTimeOffset]::Parse($Snapshot.Timestamp).ToString('HH:mm:ss'))",
         ''
@@ -691,7 +766,7 @@ function Get-SystemPanel {
 }
 
 function Get-RawSnapshot {
-    param($PullRequests, [hashtable] $Releases, $Commentary, $Workers, $System, [AllowNull()][string] $GitHubError, [AllowNull()][string] $Transcript)
+    param($PullRequests, [hashtable] $Releases, $Commentary, $Workers, $System, $Approvals, [AllowNull()][string] $GitHubError, [AllowNull()][string] $Transcript)
     $prSnapshots = @()
     foreach ($record in @($PullRequests)) {
         $pr = $record.PullRequest
@@ -735,13 +810,13 @@ function Get-RawSnapshot {
         CodexWorkers = @($Workers)
         Transcript = [pscustomobject]@{ Path = $Transcript; Messages = @($Commentary) }
         System = $System
+        Approvals = @($Approvals)
     }
 }
 
 function Get-PrPanel {
-    param($PullRequests, [hashtable] $Releases, $Commentary, $Workers, [int] $Width, [string] $Transcript)
+    param($PullRequests, [hashtable] $Releases, $Commentary, $Workers, $Approvals, [int] $Width, [string] $Transcript)
     $lines = @(
-        (New-PanelHeader -Title 'CI PIPELINE' -Width $Width),
         "  Updated $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')  refresh ${IntervalSeconds}s",
         ''
     )
@@ -822,7 +897,14 @@ function Get-PrPanel {
             $lines += "$time  $($message.Text)"
         }
     }
-    return @($lines | ForEach-Object { Limit-Text ([string]$_) $Width })
+    $lines += ''
+    $lines += 'GITHUB APPROVAL SURFACE'
+    if (@($Approvals).Count -eq 0) { $lines += '  no approval requests observed' }
+    foreach ($approval in @($Approvals)) {
+        $lines += "  [$($approval.State)] $($approval.Repository)#$($approval.Issue) | Codex authority $($approval.CodexAuthority)"
+        $lines += "  `- $($approval.Title)"
+    }
+    return @($lines | ForEach-Object { Limit-Text ([string]$_) $Width -PreserveWhitespace })
 }
 
 function Write-Dashboard {
@@ -834,29 +916,67 @@ function Write-Dashboard {
         [ref] $PreviousHeight,
         [string] $Focus = 'WORKFLOW',
         [bool] $Paused = $false,
+        [bool] $HelpRequested = $false,
         [int] $LeftOffset = 0,
         [int] $RightOffset = 0
     )
+    if ($Interactive -and $HelpRequested) {
+        $helpWidth = [Math]::Max(60, [Math]::Min($Width - 2, 100))
+        $help = @(
+            '+-- JAPANGLIFY CONTROLS ' + ('-' * [Math]::Max(1, $helpWidth - 25)) + '--+',
+            '|  h or ?     toggle this help screen',
+            '|  Left/Right  choose workflow or host panel',
+            '|  Up/Down     scroll the selected panel',
+            '|  Home        return selected panel to the top',
+            '|  Space       pause/resume live refresh',
+            '|  q           quit the dashboard',
+            '|',
+            '|  Legend: >> focused panel <<   cyan headings   green healthy',
+            '|          yellow waiting/warn   red error   magenta resources',
+            '+------------------------------------------------------------------+'
+        )
+        if ($Interactive) { try { [Console]::SetCursorPosition(0,0) } catch { Clear-Host } }
+        foreach ($line in $help) { [Console]::WriteLine((Color-Line (Pad-Line $line $helpWidth))) }
+        $PreviousHeight.Value = $help.Count
+        return
+    }
     $Left = @(Apply-PanelOffset -Lines $Left -Offset $LeftOffset)
     $Right = @(Apply-PanelOffset -Lines $Right -Offset $RightOffset)
-    $gap = 2
-    $rightWidth = [Math]::Max(28, [int][Math]::Floor($Width / 3))
-    $leftWidth = $Width - $rightWidth - $gap
+    $printWidth = [Math]::Max(80, $Width - 1)
+    $gap = 1
+    # Give the system panel enough room for CPU/RAM/process columns while
+    # keeping the workflow panel dominant.  This ratio stays deterministic
+    # across resize events, so the divider does not visibly wander.
+    $rightTotalWidth = [Math]::Max(42, [int][Math]::Floor($printWidth * 0.36))
+    $leftTotalWidth = $printWidth - $rightTotalWidth - $gap
+    $leftInnerWidth = [Math]::Max(30, $leftTotalWidth - 4)
+    $rightInnerWidth = [Math]::Max(30, $rightTotalWidth - 4)
     $pauseLabel = if ($Paused) { 'PAUSED' } else { 'LIVE' }
     $offsetLabel = if ($Focus -eq 'WORKFLOW') { "WORKFLOW+$LeftOffset" } else { "HOST+$RightOffset" }
     $hint = if ($Width -ge 140) { 'arrows navigate | space pause | q quit' } elseif ($Width -ge 110) { 'arrows | space | q' } else { 'keys: arrows/space/q' }
     $bannerLabel = " JAPANGLIFY  /  CI CONTROL ROOM  /  $offsetLabel  /  $pauseLabel  /  $hint "
-    $bannerFill = [Math]::Max(4, $Width - $bannerLabel.Length - 4)
+    $bannerFill = [Math]::Max(4, $printWidth - $bannerLabel.Length - 4)
     $banner = '+==' + $bannerLabel + ('=' * $bannerFill) + '==+'
-    $separator = '+' + ('-' * [Math]::Max(8, $Width - 2)) + '+'
+    $separator = '+' + ('-' * [Math]::Max(8, $printWidth - 2)) + '+'
+    $resized = $script:LastRenderWidth -ne $Width
+    if ($Interactive -and $resized) {
+        try { Clear-Host } catch {}
+        $PreviousHeight.Value = 0
+    }
+    $script:LastRenderWidth = $Width
     if ($Width -lt 100) {
         $combined = @($banner, $separator) + @($Left) + @('') + @($Right)
     } else {
-        $height = [Math]::Max($Left.Count, $Right.Count)
+        $sharedBodyHeight = [Math]::Max($Left.Count, $Right.Count)
+        $leftTitle = if ($Focus -eq 'WORKFLOW') { '>> CI / WORKFLOW <<' } else { 'CI / WORKFLOW' }
+        $rightTitle = if ($Focus -eq 'HOST') { '>> HOST / SYSTEM HEALTH <<' } else { 'HOST / SYSTEM HEALTH' }
+        $leftFrame = @(New-FramedPanel -Title $leftTitle -Lines $Left -InnerWidth $leftInnerWidth -MinimumHeight $sharedBodyHeight)
+        $rightFrame = @(New-FramedPanel -Title $rightTitle -Lines $Right -InnerWidth $rightInnerWidth -MinimumHeight $sharedBodyHeight)
+        $height = [Math]::Max($leftFrame.Count, $rightFrame.Count)
         $combined = @($banner, $separator) + @(for ($i = 0; $i -lt $height; $i++) {
-            $leftLine = if ($i -lt $Left.Count) { $Left[$i] } else { '' }
-            $rightLine = if ($i -lt $Right.Count) { $Right[$i] } else { '' }
-            (Pad-Line $leftLine $leftWidth) + (' ' * $gap) + (Limit-Text $rightLine $rightWidth)
+            $leftLine = if ($i -lt $leftFrame.Count) { $leftFrame[$i] } else { ' ' * $leftTotalWidth }
+            $rightLine = if ($i -lt $rightFrame.Count) { $rightFrame[$i] } else { ' ' * $rightTotalWidth }
+            (Pad-Line $leftLine $leftTotalWidth) + (' ' * $gap) + (Pad-Line $rightLine $rightTotalWidth)
         })
     }
     if ($Interactive) {
@@ -864,7 +984,7 @@ function Write-Dashboard {
         $heightToWrite = [Math]::Max($combined.Count, $PreviousHeight.Value)
         for ($i = 0; $i -lt $heightToWrite; $i++) {
             $line = if ($i -lt $combined.Count) { $combined[$i] } else { '' }
-            [Console]::WriteLine((Color-Line (Pad-Line $line ($Width - 1))))
+            [Console]::WriteLine((Color-Line (Pad-Line $line $printWidth)))
         }
         $PreviousHeight.Value = $combined.Count
     } else {
@@ -883,23 +1003,31 @@ $releaseCacheAt = [DateTimeOffset]::MinValue
 $lastPullRequests = @()
 $githubError = $null
 $previousHeight = 0
+$script:LastRenderWidth = 0
 $interactive = -not $Once -and $OutputFormat -eq 'Console'
 try { if ([Console]::IsOutputRedirected) { $interactive = $false } } catch { $interactive = $false }
 if ($interactive) { Clear-Host }
 $focus = 'HOST'
 $paused = $false
+$helpRequested = $false
+$inputRequested = $false
 $leftOffset = 0
 $rightOffset = 0
 $quitRequested = $false
+$resizeRequested = $false
+$lastObservedWidth = Get-TerminalWidth
 $haveData = $false
+$approvals = @()
 
 do {
     if ($interactive) {
-        Read-DashboardKeys -Focus ([ref]$focus) -Paused ([ref]$paused) -LeftOffset ([ref]$leftOffset) -RightOffset ([ref]$rightOffset) -QuitRequested ([ref]$quitRequested) | Out-Null
+        if (Read-DashboardKeys -Focus ([ref]$focus) -Paused ([ref]$paused) -LeftOffset ([ref]$leftOffset) -RightOffset ([ref]$rightOffset) -QuitRequested ([ref]$quitRequested) -HelpRequested ([ref]$helpRequested)) { $inputRequested = $true }
     }
     if ($quitRequested) { break }
 
-    $refresh = -not $paused -or -not $haveData
+    # A resize should repaint immediately, but must not wait for or trigger an
+    # unnecessary GitHub refresh.  Keep the last snapshot and just reflow it.
+    $refresh = (-not $paused -or -not $haveData) -and -not $resizeRequested -and -not $inputRequested
     if ($refresh) {
         try {
             $lastPullRequests = Get-OpenPullRequests $Repository
@@ -916,41 +1044,47 @@ do {
             }
         }
         $haveData = $true
+        $approvals = @(Get-GitHubApprovalSurface $ApprovalRepository)
     }
 
     # A GitHub/API refresh can take longer than a keypress interval. Drain
     # buffered input again before painting so navigation is not lost while the
     # dashboard is doing network or performance-counter work.
     if ($interactive) {
-        Read-DashboardKeys -Focus ([ref]$focus) -Paused ([ref]$paused) -LeftOffset ([ref]$leftOffset) -RightOffset ([ref]$rightOffset) -QuitRequested ([ref]$quitRequested) | Out-Null
+        if (Read-DashboardKeys -Focus ([ref]$focus) -Paused ([ref]$paused) -LeftOffset ([ref]$leftOffset) -RightOffset ([ref]$rightOffset) -QuitRequested ([ref]$quitRequested) -HelpRequested ([ref]$helpRequested)) { $inputRequested = $true }
         if ($quitRequested) { break }
     }
 
     $width = Get-TerminalWidth
-    $rightWidth = [Math]::Max(28, [int][Math]::Floor($width / 3))
-    $leftWidth = if ($width -lt 100) { $width } else { $width - $rightWidth - 2 }
+    $printWidth = [Math]::Max(80, $width - 1)
+    $rightTotalWidth = [Math]::Max(42, [int][Math]::Floor($printWidth * 0.36))
+    $leftTotalWidth = $printWidth - $rightTotalWidth - 1
+    $rightWidth = [Math]::Max(30, $rightTotalWidth - 4)
+    $leftWidth = if ($width -lt 100) { $width } else { [Math]::Max(30, $leftTotalWidth - 4) }
     $commentary = @(Get-TranscriptCommentary $TranscriptPath $TranscriptLines)
     $workers = @(Get-CodexWorkers $TranscriptPath $WorkerLookbackMinutes $MaxWorkers)
     $system = Get-SystemSnapshot -DashboardStartedAt $dashboardStartedAt
     $snapshot = $null
     $jsonLine = $null
     if ($refresh) {
-        $snapshot = Get-RawSnapshot -PullRequests $lastPullRequests -Releases $releaseCache -Commentary $commentary -Workers $workers -System $system -GitHubError $githubError -Transcript $TranscriptPath
+        $snapshot = Get-RawSnapshot -PullRequests $lastPullRequests -Releases $releaseCache -Commentary $commentary -Workers $workers -System $system -Approvals $approvals -GitHubError $githubError -Transcript $TranscriptPath
         $jsonLine = $snapshot | ConvertTo-Json -Depth 12 -Compress
         Write-SnapshotLog -Snapshot $snapshot
     }
     if ($OutputFormat -eq 'Json') {
         if ($refresh) { Write-Output $jsonLine }
     } else {
-        $left = @(Get-PrPanel -PullRequests $lastPullRequests -Releases $releaseCache -Commentary $commentary -Workers $workers -Width $leftWidth -Transcript $TranscriptPath)
+        $left = @(Get-PrPanel -PullRequests $lastPullRequests -Releases $releaseCache -Commentary $commentary -Workers $workers -Approvals $approvals -Width $leftWidth -Transcript $TranscriptPath)
         if ($githubError) { $left = @('GITHUB OFFLINE  |  run gh auth login for PR/release data', '') + $left }
         $right = @(Get-SystemPanel -Snapshot $system -Width $rightWidth)
-        Write-Dashboard $left $right $width $interactive ([ref]$previousHeight) $focus $paused $leftOffset $rightOffset
+        Write-Dashboard $left $right $width $interactive ([ref]$previousHeight) $focus $paused $helpRequested $leftOffset $rightOffset
     }
 
     if (-not $Once) {
         if ($interactive) {
-            Wait-DashboardInput -Seconds $IntervalSeconds -Focus ([ref]$focus) -Paused ([ref]$paused) -LeftOffset ([ref]$leftOffset) -RightOffset ([ref]$rightOffset) -QuitRequested ([ref]$quitRequested) | Out-Null
+            $resizeRequested = $false
+            $inputRequested = $false
+            Wait-DashboardInput -Seconds $IntervalSeconds -Focus ([ref]$focus) -Paused ([ref]$paused) -LeftOffset ([ref]$leftOffset) -RightOffset ([ref]$rightOffset) -QuitRequested ([ref]$quitRequested) -HelpRequested ([ref]$helpRequested) -InputRequested ([ref]$inputRequested) -ResizeRequested ([ref]$resizeRequested) -LastObservedWidth ([ref]$lastObservedWidth) | Out-Null
         } else {
             Start-Sleep -Seconds $IntervalSeconds
         }
