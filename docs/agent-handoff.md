@@ -78,6 +78,27 @@ validation result, architectural decision, or follow-up risk.
   before Gradle assembly. This is the established CI recipe; it never accesses
   a release keystore.
 
+## 2026-08-20 — Persisted tester-CI contract
+
+- `Build test APKs` runs on qualifying PRs to `BETA-2` and on manual dispatch.
+  It runs `:domain:test` and builds exactly three fresh-install tester APKs:
+  downloadable debug, bundled debug, and downloadable release.
+- Each qualifying PR publishes those APKs as individually downloadable GitHub
+  prerelease assets tagged `pr-<PR_NUMBER>-build-<RUN_NUMBER>`, then posts the
+  three direct download links and the Actions run link back to the PR. It does
+  not upload a user-facing ZIP and it does not create a production release.
+- The downloadable release artifact is minified but signed only with the
+  ephemeral CI debug-style key. It is a tester artifact, never a production
+  signing result. Brian alone creates BETA-2/BETA-3/production tags and
+  production releases.
+- The workflow uses Gradle's build cache to accelerate subsequent PRs. Its
+  cache, generated `app/build` directory, and signing key are runner-local
+  implementation details; no secret is committed or persisted in the repo.
+- CI status is the validation authority for a PR when a host-local Android or
+  Gradle environment cannot reproduce the test run. Record the limitation in
+  the linked issue/PR and preserve the workflow URL rather than treating the
+  host failure as an application failure.
+
 ## 2026-08-20 — Preemptive image default regression guard
 
 - The app module does not yet have a configured unit-test dependency. Issue #5
