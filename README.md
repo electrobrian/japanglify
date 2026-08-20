@@ -202,6 +202,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/ci-pipeline-dashboar
 
 Console mode uses ANSI/VT colors when available; use `-NoColor` (or set
 `NO_COLOR=1`) for monochrome terminals, transcript capture, or accessibility.
+The layout is intentionally split into a left CI/workflow column and a right
+host-health column, with a compact control-room banner and framed section
+headers so the high-signal state remains scannable as the terminal grows.
 
 Skip the Android app module (domain only): `./gradlew -PincludeApp=false :domain:test`.
 

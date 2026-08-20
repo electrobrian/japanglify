@@ -85,6 +85,19 @@ function Pad-Line {
     return $value.PadRight($Width)
 }
 
+function New-PanelHeader {
+    param([string] $Title, [int] $Width)
+    $usable = [Math]::Max(12, $Width)
+    $label = " $Title "
+    $fill = [Math]::Max(1, $usable - $label.Length - 2)
+    return ('+--' + $label + ('-' * $fill) + '--+')
+}
+
+function New-PanelRule {
+    param([int] $Width)
+    return ('  ' + ('·' * [Math]::Max(8, $Width - 4)))
+}
+
 function Color-Line {
     param([AllowNull()][string] $Text)
     if (-not $script:UseColor -or [string]::IsNullOrEmpty($Text)) { return $Text }
@@ -499,38 +512,48 @@ function Get-SystemSnapshot {
 
 function Get-SystemPanel {
     param($Snapshot, [int] $Width)
-    $lines = @('SYSTEM', "$($Snapshot.Host) | host up $(Format-DurationSeconds $Snapshot.SystemUptimeSeconds)", "dashboard up $(Format-DurationSeconds $Snapshot.DashboardUptimeSeconds) | $([DateTimeOffset]::Parse($Snapshot.Timestamp).ToString('HH:mm:ss'))")
+    $lines = @(
+        (New-PanelHeader -Title 'SYSTEM HEALTH' -Width $Width),
+        "  $($Snapshot.Host) | host up $(Format-DurationSeconds $Snapshot.SystemUptimeSeconds)",
+        "  dashboard up $(Format-DurationSeconds $Snapshot.DashboardUptimeSeconds) | $([DateTimeOffset]::Parse($Snapshot.Timestamp).ToString('HH:mm:ss'))",
+        ''
+    )
     $power = $Snapshot.Power
     if ($power) {
         $remaining = Format-DurationSeconds $power.BatteryLifeRemainingSeconds
         $powerLine = if ($power.PowerLineStatus -eq 'Offline') { "battery $($power.BatteryPercent)% | est $remaining left" } else { [string]$power.PowerLineStatus }
-        $lines += "power $($power.State) | throttle $($power.ThrottlednessPercent)%"
-        $lines += "$powerLine | limit $($power.PerformanceLimitPercent)% | freq $($power.MaximumFrequencyPercent)%"
-        if ($power.ActivePlan) { $lines += "plan $($power.ActivePlan) | $($power.Scope)/$($power.Confidence)" }
+        $lines += '  POWER'
+        $lines += "  $($power.State) | throttle $($power.ThrottlednessPercent)%"
+        $lines += "  $powerLine | limit $($power.PerformanceLimitPercent)% | freq $($power.MaximumFrequencyPercent)%"
+        if ($power.ActivePlan) { $lines += "  plan $($power.ActivePlan) | $($power.Scope)/$($power.Confidence)" }
+        $lines += ''
     }
     $barWidth = [Math]::Max(5, $Width - 15)
     if ($null -ne $Snapshot.Cpu.TotalPercent) {
-        $lines += ('CPU all [{0}] {1,3}%' -f (New-Bar $Snapshot.Cpu.TotalPercent $barWidth), [int]$Snapshot.Cpu.TotalPercent)
+        $lines += '  CPU'
+        $lines += ('  all [{0}] {1,3}%' -f (New-Bar $Snapshot.Cpu.TotalPercent $barWidth), [int]$Snapshot.Cpu.TotalPercent)
     }
     foreach ($cpu in @($Snapshot.Cpu.Cores)) {
-        $lines += ('CPU {0,3} [{1}] {2,3}%' -f $cpu.Core, (New-Bar $cpu.Percent $barWidth), [int]$cpu.Percent)
+        $lines += ('  core {0,3} [{1}] {2,3}%' -f $cpu.Core, (New-Bar $cpu.Percent $barWidth), [int]$cpu.Percent)
     }
     $lines += ''
     if ($Snapshot.Memory) {
         $memory = $Snapshot.Memory
-        $lines += ('RAM     [{0}] {1,3}%' -f (New-Bar $memory.PhysicalPercent $barWidth), [int]$memory.PhysicalPercent)
-        $lines += ('        {0:N1}/{1:N1} GB' -f ($memory.PhysicalUsedMb / 1024), ($memory.PhysicalTotalMb / 1024))
-        $lines += ('Commit  [{0}] {1,3}%' -f (New-Bar $memory.CommitPercent $barWidth), [int]$memory.CommitPercent)
-        $lines += ('        {0:N1}/{1:N1} GB' -f ($memory.CommitUsedMb / 1024), ($memory.CommitLimitMb / 1024))
-        $lines += ('Paging  {0:N1} pages/sec' -f $memory.PagesPerSecond)
+        $lines += '  MEMORY'
+        $lines += ('  RAM    [{0}] {1,3}%' -f (New-Bar $memory.PhysicalPercent $barWidth), [int]$memory.PhysicalPercent)
+        $lines += ('         {0:N1}/{1:N1} GB' -f ($memory.PhysicalUsedMb / 1024), ($memory.PhysicalTotalMb / 1024))
+        $lines += ('  Commit [{0}] {1,3}%' -f (New-Bar $memory.CommitPercent $barWidth), [int]$memory.CommitPercent)
+        $lines += ('         {0:N1}/{1:N1} GB' -f ($memory.CommitUsedMb / 1024), ($memory.CommitLimitMb / 1024))
+        $lines += ('  Paging {0:N1} pages/sec' -f $memory.PagesPerSecond)
     }
     $lines += ''
-    $lines += 'BUSIEST PROCESSES'
+    $lines += ''
+    $lines += '  BUSIEST PROCESSES'
     foreach ($process in @($Snapshot.Processes)) {
         $nameWidth = [Math]::Max(8, $Width - 34)
         $name = Limit-Text ([string]$process.Name) $nameWidth
         $uptime = Format-DurationSeconds $process.UptimeSeconds
-        $lines += ('{0,-' + $nameWidth + '} {1,5:N1}% {2,7:N0} MB up {3}') -f $name, $process.CpuPercent, $process.PrivateWorkingSetMb, $uptime
+        $lines += ('  {0,-' + $nameWidth + '} {1,5:N1}% {2,7:N0} MB up {3}') -f $name, $process.CpuPercent, $process.PrivateWorkingSetMb, $uptime
     }
     $lines += @($Snapshot.Errors)
     return @($lines)
@@ -586,7 +609,11 @@ function Get-RawSnapshot {
 
 function Get-PrPanel {
     param($PullRequests, [hashtable] $Releases, $Commentary, $Workers, [int] $Width, [string] $Transcript)
-    $lines = @('CI PIPELINE', "Updated $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')  refresh ${IntervalSeconds}s")
+    $lines = @(
+        (New-PanelHeader -Title 'CI PIPELINE' -Width $Width),
+        "  Updated $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')  refresh ${IntervalSeconds}s",
+        ''
+    )
     $records = @($PullRequests)
     if ($records.Count -eq 0) { $lines += 'No open pull requests.' }
 
@@ -634,6 +661,7 @@ function Get-PrPanel {
 
     if (@($Workers).Count -gt 0) {
         $lines += ''
+        $lines += (New-PanelRule -Width $Width)
         $lines += 'CODEX WORKERS'
         foreach ($worker in @($Workers)) {
             $references = @()
@@ -652,6 +680,7 @@ function Get-PrPanel {
 
     if (@($Commentary).Count -gt 0) {
         $lines += ''
+        $lines += (New-PanelRule -Width $Width)
         $lines += 'CODEX TASK TAIL'
         if ($Transcript) { $lines += "source: $Transcript" }
         foreach ($message in @($Commentary)) {
@@ -667,15 +696,19 @@ function Write-Dashboard {
     $gap = 2
     $rightWidth = [Math]::Max(28, [int][Math]::Floor($Width / 3))
     $leftWidth = $Width - $rightWidth - $gap
+    $bannerLabel = ' JAPANGLIFY  /  CI CONTROL ROOM '
+    $bannerFill = [Math]::Max(4, $Width - $bannerLabel.Length - 4)
+    $banner = '+==' + $bannerLabel + ('=' * $bannerFill) + '==+'
+    $separator = '+' + ('-' * [Math]::Max(8, $Width - 2)) + '+'
     if ($Width -lt 100) {
-        $combined = @($Left) + @('') + @($Right)
+        $combined = @($banner, $separator) + @($Left) + @('') + @($Right)
     } else {
         $height = [Math]::Max($Left.Count, $Right.Count)
-        $combined = for ($i = 0; $i -lt $height; $i++) {
+        $combined = @($banner, $separator) + @(for ($i = 0; $i -lt $height; $i++) {
             $leftLine = if ($i -lt $Left.Count) { $Left[$i] } else { '' }
             $rightLine = if ($i -lt $Right.Count) { $Right[$i] } else { '' }
             (Pad-Line $leftLine $leftWidth) + (' ' * $gap) + (Limit-Text $rightLine $rightWidth)
-        }
+        })
     }
     if ($Interactive) {
         try { [Console]::SetCursorPosition(0, 0) } catch { Clear-Host }

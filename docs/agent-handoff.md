@@ -102,3 +102,7 @@ validation result, architectural decision, or follow-up risk.
 - Console mode color-codes headings, pass/fail/wait states, power warnings, and
   resource panels with ANSI/VT sequences when supported; `-NoColor` and the
   `NO_COLOR` environment variable provide deterministic monochrome output.
+- The dashboard uses ASCII-only framing for portable Windows code pages, with a
+  top-level control-room banner and deliberate left workflow/right host-health
+  composition. This avoids relying on Unicode box drawing while preserving
+  clear visual grouping.
