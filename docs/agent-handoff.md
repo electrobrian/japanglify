@@ -34,7 +34,7 @@ validation result, architectural decision, or follow-up risk.
   branch cut after personal testing, not an automatic release tag.
 - An issue is **maybe resolved / requires testing** only after the APK workflow
   succeeds for its branch. The workflow uploads downloadable and bundled debug
-  APKs; the GitHub Project status, not a custom label, records *Ready for test*.
+  APKs; the GitHub Project `Validation` field, not a custom label, records *Ready for test*.
 
 ## 2026-08-20 — GitHub issue-agent integration
 
@@ -51,3 +51,12 @@ validation result, architectural decision, or follow-up risk.
 - The connected-agent dry run is issue #2 and its PR into `BETA-2`. It changes
   only this handoff log; its result validates issue → agent branch → PR without
   touching app code.
+
+## 2026-08-20 — CI resource-link failure
+
+- The first connected-agent APK workflow run reached Android resource linking
+  and failed because the English string resources lacked
+  `overlay_preview_status`, `overlay_action_settings`, and
+  `overlay_action_copy_as_image`, even though the overlay layout referenced
+  them. The missing English strings were added on `BETA-2`; wait for the
+  follow-up workflow before considering any output ready for testing.
