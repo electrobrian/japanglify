@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   pull_request:
     branches: [BETA-2, BETA-3]
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'app/**'
       - 'domain/**'
@@ -13,11 +14,14 @@ on:
       - 'gradle/**'
       - '.github/workflows/test-apks.yml'
 
+# Raw APK downloads are published as GitHub prerelease assets. Actions
+# artifacts are intentionally not used because GitHub always wraps them in ZIP.
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -44,12 +48,43 @@ jobs:
           EOF
       - name: Build tester APKs
         run: ./gradlew --build-cache :app:assembleDownloadableDebug :app:assembleBundledDebug :app:assembleDownloadableRelease
-      - name: Upload test APKs
-        uses: actions/upload-artifact@v4
-        with:
-          name: japanglify-test-apks-${{ github.run_number }}
-          if-no-files-found: error
-          path: |
-            app/build/outputs/apk/downloadable/debug/*.apk
-            app/build/outputs/apk/bundled/debug/*.apk
-            app/build/outputs/apk/downloadable/release/*.apk
+      - name: Prepare raw APK assets
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/downloadable/debug/*.apk dist/japanglify-downloadable-debug.apk
+          cp app/build/outputs/apk/bundled/debug/*.apk dist/japanglify-bundled-debug.apk
+          cp app/build/outputs/apk/downloadable/release/*.apk dist/japanglify-downloadable-release.apk
+      - name: Publish individual tester APKs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_NUMBER: ${{ github.run_number }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            tag="pr-${PR_NUMBER}-build-${RUN_NUMBER}"
+            title="PR #${PR_NUMBER} tester APKs (build ${RUN_NUMBER})"
+            target="$HEAD_SHA"
+            source="PR #${PR_NUMBER}"
+          else
+            tag="manual-build-${RUN_NUMBER}"
+            title="Manual tester APKs (build ${RUN_NUMBER})"
+            target="$GITHUB_SHA"
+            source="manual workflow dispatch"
+          fi
+
+          notes="Tester binaries for ${source}.
+
+          Workflow: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}
+          Commit: ${target}
+
+          The downloadable release APK is minified but uses an ephemeral CI signing key. Treat all three APKs as fresh-install tester builds, not production releases."
+
+          gh release create "$tag" dist/*.apk \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$target" \
+            --title "$title" \
+            --notes "$notes" \
+            --prerelease
