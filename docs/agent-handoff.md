@@ -60,3 +60,11 @@ validation result, architectural decision, or follow-up risk.
   `overlay_action_copy_as_image`, even though the overlay layout referenced
   them. The missing English strings were added on `BETA-2`; wait for the
   follow-up workflow before considering any output ready for testing.
+
+
+## 2026-08-20 — CI debug signing
+
+- The next CI run passed resource linking and then failed at debug signing because
+  `app/build/local-debug.keystore` is intentionally uncommitted. The APK
+  workflow now generates this standard, ephemeral Android debug keystore on the
+  hosted runner before assembly; no release key or secret is introduced.
